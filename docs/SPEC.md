@@ -20,21 +20,31 @@
 
 ```
 app/
-├── index.html          shell da SPA + todas as telas (seções escondidas por rota)
+├── index.html          shell da SPA + os 3 modais (conta, pagamento, confirmação)
 ├── css/
-│   └── estilo.css       tokens (claro/escuro) + layout + componentes
+│   └── estilo.css       tokens (claro/escuro) + layout + componentes + cores de categoria
 └── js/
     ├── datas.js          motor de datas: semana seg-dom, numeração de semana do mês
     ├── contas.js          modelo de conta + motor de recorrência + motor de parcelamento
+    ├── categorias.js      cor + ícone por categoria (determinístico pelo nome)
+    ├── filtros.js         período → intervalo; filtro combinado (período/status/categoria/tipo)
+    ├── analise.js         ⭐ números do dashboard: resumo do mês, comparativo, por categoria,
+    │                        por semana, próximos vencimentos, prazo em linguagem humana
     ├── armazenamento.js  Store: única porta de entrada pro localStorage
     ├── formatar.js        dinheiro (BRL), datas, texto
+    ├── graficos.js        donut, barras por semana, anel de progresso — SVG puro, sem lib
     ├── render.js           funções de desenho de tela (sem lógica de negócio)
     ├── app.js              roteador por hash (#/dashboard, #/pagar, #/receber) + bootstrap
-    └── icones.js           SVG inline, mesmo padrão do CRM de referência (sem emoji na UI)
+    └── icones.js           SVG inline (sem emoji na UI)
 testes/
-├── motor.teste.js        testes puros de datas.js + contas.js (Node, sem browser)
+├── motor.teste.js        testes puros de datas/contas/filtros/analise/categorias (Node)
 └── e2e/                   testes Playwright da interface completa
 ```
+
+**Camadas, de dentro pra fora:** `datas`/`contas` (regra) → `filtros`/`analise` (derivação) →
+`graficos`/`render` (desenho) → `app` (orquestração). Uma camada só depende das de dentro.
+Nenhum número exibido é calculado dentro de `render.js` ou `app.js` — se aparece na tela, veio
+de `analise.js` ou `filtros.js`, e por isso é testável em Node sem navegador.
 
 ## Modelo de dados (`localStorage` → chave `financas_v1`)
 

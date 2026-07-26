@@ -54,7 +54,34 @@
 
     tag: '<svg viewBox="0 0 24 24" ' + TRACO + '><path d="M3.5 12.5V6a2 2 0 0 1 2-2h6.5L20.5 12.5 12.5 20.5 3.5 12.5z"/><circle cx="8" cy="8" r="1.2" fill="currentColor" stroke="none"/></svg>',
 
-    vazio: '<svg viewBox="0 0 24 24" ' + TRACO + '><rect x="4" y="4" width="16" height="16" rx="3"/><line x1="9" y1="12" x2="15" y2="12"/></svg>'
+    vazio: '<svg viewBox="0 0 24 24" ' + TRACO + '><rect x="4" y="4" width="16" height="16" rx="3"/><line x1="9" y1="12" x2="15" y2="12"/></svg>',
+
+    // ---- icones de categoria ----
+    casa: '<svg viewBox="0 0 24 24" ' + TRACO + '><path d="M4 10.5L12 4l8 6.5"/><path d="M6 9.8V19a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V9.8"/><path d="M10 20v-5.5h4V20"/></svg>',
+
+    mercado: '<svg viewBox="0 0 24 24" ' + TRACO + '><path d="M3 5h2.2l2 10.5a1.5 1.5 0 0 0 1.5 1.2h8.1a1.5 1.5 0 0 0 1.5-1.2L20 8H6.2"/><circle cx="9.5" cy="20" r="1.1"/><circle cx="17" cy="20" r="1.1"/></svg>',
+
+    transporte: '<svg viewBox="0 0 24 24" ' + TRACO + '><path d="M5 16.5V9.2a2 2 0 0 1 1.5-1.9l2-.5a14 14 0 0 1 7 0l2 .5A2 2 0 0 1 19 9.2v7.3"/><path d="M5 12.5h14"/><circle cx="8" cy="16.5" r="1.3"/><circle cx="16" cy="16.5" r="1.3"/><path d="M6.5 19v1.2M17.5 19v1.2"/></svg>',
+
+    saude: '<svg viewBox="0 0 24 24" ' + TRACO + '><path d="M12 20s-7-4.4-7-9.4A4.1 4.1 0 0 1 12 7.6a4.1 4.1 0 0 1 7 3c0 5-7 9.4-7 9.4z"/></svg>',
+
+    lazer: '<svg viewBox="0 0 24 24" ' + TRACO + '><circle cx="12" cy="12" r="8"/><path d="M12 8.2v3.9l2.6 1.6"/></svg>',
+
+    educacao: '<svg viewBox="0 0 24 24" ' + TRACO + '><path d="M12 5l9 4-9 4-9-4 9-4z"/><path d="M7 11.2V16c0 1.1 2.2 2.2 5 2.2s5-1.1 5-2.2v-4.8"/></svg>',
+
+    trabalho: '<svg viewBox="0 0 24 24" ' + TRACO + '><rect x="3.5" y="7.5" width="17" height="12" rx="2"/><path d="M9 7.5V6a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 6v1.5"/><path d="M3.5 12.5h17"/></svg>',
+
+    pet: '<svg viewBox="0 0 24 24" ' + TRACO + '><ellipse cx="12" cy="15.5" rx="4" ry="3.4"/><ellipse cx="6.6" cy="10.4" rx="1.7" ry="2.2"/><ellipse cx="17.4" cy="10.4" rx="1.7" ry="2.2"/><ellipse cx="10" cy="7" rx="1.6" ry="2.1"/><ellipse cx="14" cy="7" rx="1.6" ry="2.1"/></svg>',
+
+    busca: '<svg viewBox="0 0 24 24" ' + TRACO + '><circle cx="11" cy="11" r="6.2"/><line x1="15.6" y1="15.6" x2="20" y2="20"/></svg>',
+
+    ordenar: '<svg viewBox="0 0 24 24" ' + TRACO + '><path d="M7 4v16M7 20l-3-3M7 20l3-3"/><path d="M17 20V4M17 4l-3 3M17 4l3 3"/></svg>',
+
+    tendenciaSobe: '<svg viewBox="0 0 24 24" ' + TRACO + '><path d="M4 16.5l5.5-5.5 3.5 3.5L20 8"/><path d="M15.5 8H20v4.5"/></svg>',
+
+    tendenciaDesce: '<svg viewBox="0 0 24 24" ' + TRACO + '><path d="M4 8l5.5 5.5L13 10l7 6.5"/><path d="M15.5 16.5H20V12"/></svg>',
+
+    raio: '<svg viewBox="0 0 24 24" ' + TRACO + '><path d="M13.5 3L5.5 13.5h5L10 21l8.5-10.5h-5L13.5 3z"/></svg>'
   };
 
   function get(nome) {

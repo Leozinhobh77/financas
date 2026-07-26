@@ -16,6 +16,7 @@ _O arquivo `.md` fica na pasta `Concluídos/`._
 
 | ID | Plano | Status | Progresso | Concluído em |
 |----|-------|--------|-----------|--------------|
+| [0002](Concluídos/0002-2026-07-26-dashboard-avancado-e-repaginada.md) | Dashboard avançado + repaginada visual completa | ✔️ Concluído | 8 de 8 (100%) | 2026-07-26 |
 | [0001](Concluídos/0001-2026-07-26-mvp-contas-a-pagar-receber.md) | MVP — Contas a pagar e a receber | ✔️ Concluído | 9 de 9 (100%) | 2026-07-26 |
 
 ---

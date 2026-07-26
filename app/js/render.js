@@ -1,50 +1,77 @@
 /**
- * Render — funções que transformam dado em HTML. Sem lógica de negócio, sem acesso a
- * Store. Recebem dados prontos, devolvem string de HTML (o app.js insere no DOM e liga os
- * eventos por delegação, usando os atributos data-* daqui).
+ * Render — transforma dado em HTML. Sem logica de negocio, sem acesso ao Store. Recebe dado
+ * ja calculado por analise.js/filtros.js e devolve string; o app.js insere no DOM e liga os
+ * eventos por delegacao, usando os atributos data-* daqui.
  */
 (function (global) {
   'use strict';
 
-  var Formatar = global.Formatar, Icones = global.Icones, Contas = global.Contas;
+  var Formatar = global.Formatar, Icones = global.Icones, Contas = global.Contas,
+      Categorias = global.Categorias, Analise = global.Analise, Datas = global.Datas,
+      Graficos = global.Graficos;
 
-  function escapeHTML(s) {
+  function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
   }
 
-  function itemConta(conta, hojeISO) {
-    var sit = Contas.situacao(conta, hojeISO);
-    var atrasadaClasse = sit === 'atrasada' ? ' atrasada' : '';
-    var iconeStatus = sit === 'paga' ? 'check' : (sit === 'atrasada' ? 'alerta' : 'calendario');
-    var rotuloAcaoStatus = sit === 'paga' ? 'Desmarcar como paga' : 'Marcar como paga';
+  /** Situacao visual de uma conta, incluindo o caso "vence hoje" (nem pendente comum, nem atrasada). */
+  function situacaoVisual(conta, hojeISO) {
+    if (conta.status === 'pago') return 'paga';
+    if (Contas.estaAtrasada(conta, hojeISO)) return 'atrasada';
+    if (conta.vencimento === hojeISO) return 'hoje';
+    return 'pendente';
+  }
 
-    var selo = conta.parcela
-      ? '<span class="item-selo">' + escapeHTML(Formatar.rotuloParcela(conta)) + '</span>'
-      : '';
-    var iconeRecorrente = conta.recorrente
-      ? '<span class="item-icone-recorrente" title="Recorrente">' + Icones.get('repetir') + '</span>'
-      : '';
+  /**
+   * Card de conta. Mostra, alem do basico: cor e icone da categoria, prazo em linguagem
+   * humana ("vence em 3 dias" / "atrasada ha 5 dias") e, quando paga, A DATA DO PAGAMENTO.
+   */
+  function cardConta(conta, hojeISO) {
+    var sit = situacaoVisual(conta, hojeISO);
+    var cor = Categorias.cor(conta.categoria);
+    var dias = Analise.diasAte(conta.vencimento, hojeISO);
+
+    var iconeMarca = sit === 'paga' ? 'check' : (sit === 'atrasada' ? 'alerta' : 'calendario');
+    var rotuloBotao = sit === 'paga' ? 'Desmarcar pagamento' : 'Marcar como paga';
+
+    var selos = '';
+    if (conta.parcela) {
+      selos += '<span class="selo">' + esc(Formatar.rotuloParcela(conta)) + '</span>';
+    }
+    if (conta.recorrente) {
+      selos += '<span class="selo selo--recorrente" title="Recorrente">' + Icones.get('repetir') + 'todo mês</span>';
+    }
+
+    // linha de meta: categoria + (data paga | prazo)
+    var metaDireita;
+    if (sit === 'paga') {
+      metaDireita = '<span class="conta-pago-em">' + Icones.get('check') +
+                    'Pago em ' + esc(Formatar.dataCurta(conta.pagoEm || conta.vencimento)) + '</span>';
+    } else {
+      var classePrazo = sit === 'atrasada' ? ' atrasada' : (sit === 'hoje' ? ' hoje' : '');
+      metaDireita = '<span class="conta-prazo' + classePrazo + '">' +
+                    esc(Formatar.dataCurta(conta.vencimento)) + ' · ' + esc(Analise.rotuloPrazo(dias)) +
+                    '</span>';
+    }
 
     return (
-      '<article class="item-conta" data-id="' + conta.id + '">' +
-        '<button class="item-status ' + sit + '" data-acao="alternar-pago" data-id="' + conta.id + '" aria-label="' + rotuloAcaoStatus + '">' +
-          Icones.get(iconeStatus) +
-        '</button>' +
-        '<div class="item-corpo">' +
-          '<div class="item-titulo-linha">' +
-            '<span class="item-descricao">' + escapeHTML(conta.descricao) + '</span>' +
-            selo + iconeRecorrente +
+      '<article class="conta conta--' + sit + '" style="--cat:var(--cat-' + cor + ')" data-id="' + conta.id + '">' +
+        '<button class="conta-marca ' + sit + '" data-acao="alternar-pago" data-id="' + conta.id + '"' +
+          ' aria-label="' + rotuloBotao + '">' + Icones.get(iconeMarca) + '</button>' +
+        '<div class="conta-corpo">' +
+          '<div class="conta-titulo">' +
+            '<span class="conta-desc">' + esc(conta.descricao) + '</span>' + selos +
           '</div>' +
-          '<div class="item-meta">' +
-            '<span class="tag-categoria">' + escapeHTML(conta.categoria) + '</span>' +
-            '<span class="data' + atrasadaClasse + '">' + Formatar.dataCurta(conta.vencimento) + '</span>' +
+          '<div class="conta-meta">' +
+            '<span class="conta-cat">' + Icones.get(Categorias.icone(conta.categoria)) + esc(conta.categoria) + '</span>' +
+            '<span class="conta-sep">·</span>' + metaDireita +
           '</div>' +
         '</div>' +
-        '<div class="item-direita">' +
-          '<span class="item-valor ' + conta.tipo + '">' + Formatar.dinheiro(conta.valor) + '</span>' +
-          '<div class="item-acoes">' +
+        '<div class="conta-direita">' +
+          '<span class="conta-valor">' + Formatar.dinheiro(conta.valor) + '</span>' +
+          '<div class="conta-acoes">' +
             '<button class="icon-btn" data-acao="editar" data-id="' + conta.id + '" aria-label="Editar">' + Icones.get('editar') + '</button>' +
             '<button class="icon-btn" data-acao="excluir" data-id="' + conta.id + '" aria-label="Excluir">' + Icones.get('excluir') + '</button>' +
           '</div>' +
@@ -53,76 +80,143 @@
     );
   }
 
-  function estadoVazio(mensagem) {
+  function vazio(titulo, dica) {
     return (
-      '<div class="estado-vazio">' + Icones.get('vazio') +
-      '<p>' + escapeHTML(mensagem) + '</p></div>'
+      '<div class="vazio">' + Icones.get('vazio') +
+        '<span class="vazio-titulo">' + esc(titulo) + '</span>' +
+        (dica ? '<span class="vazio-dica">' + esc(dica) + '</span>' : '') +
+      '</div>'
     );
   }
 
-  function listaFlat(contasLista, hojeISO, mensagemVazio) {
-    if (!contasLista.length) return estadoVazio(mensagemVazio || 'Nada por aqui neste filtro.');
-    return '<div class="lista-contas">' + contasLista.map(function (c) { return itemConta(c, hojeISO); }).join('') + '</div>';
+  function lista(contasLista, hojeISO, msgVazio, dicaVazio) {
+    if (!contasLista.length) return vazio(msgVazio || 'Nada por aqui', dicaVazio);
+    return '<div class="lista">' + contasLista.map(function (c) { return cardConta(c, hojeISO); }).join('') + '</div>';
   }
 
-  /** grupos: [{ numero, inicio, fim, itens: [conta...] }, ...] (semanas de um mês) */
-  function listaAgrupada(grupos, hojeISO, mensagemVazio) {
+  /** Lista agrupada pelas semanas do mes (RN003), com total por semana. */
+  function listaPorSemana(grupos, hojeISO, msgVazio, dicaVazio) {
     var comItens = grupos.filter(function (g) { return g.itens.length > 0; });
-    if (!comItens.length) return estadoVazio(mensagemVazio || 'Nada por aqui neste filtro.');
+    if (!comItens.length) return vazio(msgVazio || 'Nada por aqui', dicaVazio);
 
     return comItens.map(function (g) {
       var total = g.itens.reduce(function (s, c) { return s + c.valor; }, 0);
       return (
-        '<div class="grupo-semana">' +
-          '<div class="grupo-semana-cabeca">' +
-            '<span>Semana ' + g.numero + ' · ' + Formatar.dataCurta(g.inicio) + '–' + Formatar.dataCurta(g.fim) + '</span>' +
-            '<span class="valor">' + Formatar.dinheiro(total) + '</span>' +
+        '<div class="grupo">' +
+          '<div class="grupo-cabeca">' +
+            '<span class="grupo-nome' + (g.ehSemanaAtual ? ' atual' : '') + '">' +
+              'Semana ' + g.numero + ' · ' + Formatar.dataCurta(g.inicio) + '–' + Formatar.dataCurta(g.fim) +
+              (g.ehSemanaAtual ? ' · agora' : '') +
+            '</span>' +
+            '<span class="grupo-valor">' + Formatar.dinheiro(total) + '</span>' +
           '</div>' +
-          listaFlat(g.itens, hojeISO) +
+          lista(g.itens, hojeISO) +
         '</div>'
       );
     }).join('');
   }
 
-  function cardPeriodo(rotulo, periodoTexto, totalPagar, totalReceber, destaque) {
-    var saldo = totalReceber - totalPagar;
+  /** Lista compacta de proximos vencimentos, com o dia em destaque. */
+  function proximosVencimentos(itens, hojeISO) {
+    if (!itens.length) {
+      return vazio('Nada pendente', 'Todas as contas deste período estão pagas.');
+    }
+    return '<div class="prox">' + itens.map(function (item) {
+      var c = item.conta;
+      var sit = situacaoVisual(c, hojeISO);
+      var classe = sit === 'atrasada' ? ' atrasada' : (sit === 'hoje' ? ' hoje' : '');
+      var p = Datas.parseISO(c.vencimento);
+      var mesCurto = Datas.nomeMes(p.mes).slice(0, 3);
+
+      return (
+        '<button class="prox-item" data-acao="editar" data-id="' + c.id + '">' +
+          '<span class="prox-dia' + classe + '">' +
+            '<span class="prox-dia-num">' + p.dia + '</span>' +
+            '<span class="prox-dia-mes">' + esc(mesCurto) + '</span>' +
+          '</span>' +
+          '<span class="prox-corpo">' +
+            '<span class="prox-desc">' + esc(c.descricao) + '</span>' +
+            '<span class="prox-prazo' + classe + '">' + esc(Analise.rotuloPrazo(item.dias)) + '</span>' +
+          '</span>' +
+          '<span class="prox-valor">' + Formatar.dinheiro(c.valor) + '</span>' +
+        '</button>'
+      );
+    }).join('') + '</div>';
+  }
+
+  /** Card-herói do dashboard: o número que responde "quanto ainda devo este mês". */
+  function heroi(resumo, comparativo, nomeMes) {
+    // Estado vazio: sem conta nenhuma no mês, um "R$ 0,00" gigante não informa nada — vira
+    // um convite pra começar. É a primeira tela que o usuário vê no primeiro uso.
+    if (resumo.qtdPagar === 0 && resumo.totalReceber === 0) {
+      return (
+        '<section class="heroi heroi--vazio">' +
+          '<div class="heroi-rotulo">' + esc(nomeMes) + '</div>' +
+          '<div class="heroi-vazio-titulo">Nenhuma conta ainda</div>' +
+          '<p class="heroi-vazio-texto">Toque no botão + para lançar sua primeira conta a pagar ou a receber.</p>' +
+        '</section>'
+      );
+    }
+
+    var chip = '';
+    if (comparativo.variacao !== null) {
+      var subiu = comparativo.variacao > 0;
+      var icone = subiu ? 'tendenciaSobe' : 'tendenciaDesce';
+      var sinal = subiu ? '+' : '';
+      chip = '<span class="heroi-chip" title="Comparado ao mês anterior">' + Icones.get(icone) +
+             sinal + comparativo.variacao.toFixed(0) + '% vs. mês anterior</span>';
+    }
+
+    var pctPago = Math.round(resumo.progresso * 100);
+
     return (
-      '<div class="card' + (destaque ? ' card--destaque' : '') + '">' +
-        '<span class="card-rotulo">' + escapeHTML(rotulo) + '</span>' +
-        '<span class="card-periodo">' + escapeHTML(periodoTexto) + '</span>' +
-        '<div class="card-linha">' +
-          '<span class="card-linha-rotulo">' + Icones.get('pagar') + ' A pagar</span>' +
-          '<span class="card-valor pagar">' + Formatar.dinheiro(totalPagar) + '</span>' +
+      '<section class="heroi">' +
+        '<div class="heroi-topo">' +
+          '<div>' +
+            '<div class="heroi-rotulo">Falta pagar em ' + esc(nomeMes) + '</div>' +
+            '<div class="heroi-valor">' + Formatar.dinheiro(resumo.totalFalta) + '</div>' +
+            '<div class="heroi-detalhe">de ' + Formatar.dinheiro(resumo.totalPagar) + ' no mês' +
+              (resumo.qtdPagar > 0 ? ' · ' + resumo.qtdPago + ' de ' + resumo.qtdPagar + ' contas pagas' : '') +
+            '</div>' +
+          '</div>' +
+          chip +
         '</div>' +
-        '<div class="card-linha">' +
-          '<span class="card-linha-rotulo">' + Icones.get('receber') + ' A receber</span>' +
-          '<span class="card-valor receber">' + Formatar.dinheiro(totalReceber) + '</span>' +
-        '</div>' +
-        '<div class="card-linha card-saldo">' +
-          '<span class="card-linha-rotulo">Saldo do período</span>' +
-          '<span class="card-valor ' + (saldo < 0 ? 'pagar' : 'receber') + '">' + Formatar.dinheiro(saldo) + '</span>' +
-        '</div>' +
+        (resumo.totalPagar > 0 ? Graficos.barraProgresso(resumo.progresso) : '') +
+        (resumo.totalPagar > 0 ? '<div class="heroi-rodape"><span>' + pctPago + '% pago</span>' +
+          '<span>' + Formatar.dinheiro(resumo.totalPago) + ' de ' + Formatar.dinheiro(resumo.totalPagar) + '</span></div>' : '') +
+      '</section>'
+    );
+  }
+
+  function miniCard(rotulo, icone, valor, nota, modificador) {
+    return (
+      '<div class="mini' + (modificador ? ' mini--' + modificador : '') + '">' +
+        '<span class="mini-rotulo">' + Icones.get(icone) + esc(rotulo) + '</span>' +
+        '<span class="mini-valor">' + valor + '</span>' +
+        (nota ? '<span class="mini-nota">' + esc(nota) + '</span>' : '') +
       '</div>'
     );
   }
 
-  function categoriaPill(nome) {
+  function catPill(nome) {
     return (
-      '<span class="categoria-pill">' + escapeHTML(nome) +
-        '<button type="button" data-acao="remover-categoria" data-nome="' + escapeHTML(nome) + '" aria-label="Remover ' + escapeHTML(nome) + '">' + Icones.get('fechar') + '</button>' +
+      '<span class="cat-pill">' +
+        '<span class="cat-pill-cor" style="background:var(--cat-' + Categorias.cor(nome) + ')"></span>' +
+        esc(nome) +
       '</span>'
     );
   }
 
-  var Render = {
-    escapeHTML: escapeHTML,
-    itemConta: itemConta,
-    estadoVazio: estadoVazio,
-    listaFlat: listaFlat,
-    listaAgrupada: listaAgrupada,
-    cardPeriodo: cardPeriodo,
-    categoriaPill: categoriaPill
+  global.Render = {
+    esc: esc,
+    situacaoVisual: situacaoVisual,
+    cardConta: cardConta,
+    vazio: vazio,
+    lista: lista,
+    listaPorSemana: listaPorSemana,
+    proximosVencimentos: proximosVencimentos,
+    heroi: heroi,
+    miniCard: miniCard,
+    catPill: catPill
   };
-
-  global.Render = Render;
 })(typeof window !== 'undefined' ? window : globalThis);

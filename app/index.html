@@ -10,12 +10,10 @@
 <body>
 
 <header class="topo">
-  <div class="topo-marca">
-    <span class="topo-logo">Finanças</span>
-  </div>
+  <div class="topo-logo">Finan<span>ças</span></div>
   <nav class="topo-nav" id="navDesktop" aria-label="Navegação principal"></nav>
   <div class="topo-acoes">
-    <button class="icon-btn" id="btnConfig" type="button" aria-label="Configurações"></button>
+    <button class="icon-btn" id="btnConfig" type="button" aria-label="Ajustes"></button>
     <button class="icon-btn" id="btnTema" type="button" aria-label="Alternar tema"></button>
   </div>
 </header>
@@ -24,18 +22,17 @@
 
 <button class="fab" id="btnNovaConta" type="button" aria-label="Nova conta"></button>
 
-<nav class="tabbar" id="tabbar" aria-label="Navegação principal (celular)"></nav>
+<nav class="tabbar" id="tabbar" aria-label="Navegação principal"></nav>
 
+<!-- Modal: criar / editar conta -->
 <div class="modal-camada" id="camadaModal" hidden>
   <div class="modal-fundo" id="modalFundo"></div>
-  <div class="modal-caixa" id="modalConta" role="dialog" aria-modal="true" aria-labelledby="modalContaTitulo">
+  <div class="modal-caixa" role="dialog" aria-modal="true" aria-labelledby="modalContaTitulo">
     <div class="modal-cabeca">
       <h2 id="modalContaTitulo">Nova conta</h2>
       <button class="icon-btn" id="fecharModalConta" type="button" aria-label="Fechar"></button>
     </div>
     <form id="formConta" class="form-conta" novalidate>
-      <input type="hidden" id="fContaId" value="">
-
       <div class="campo">
         <span class="rotulo">Tipo</span>
         <div class="segmentado" id="segTipo" role="radiogroup" aria-label="Tipo de conta">
@@ -79,8 +76,8 @@
       </div>
 
       <p class="dica" id="dicaRecorrente" hidden>
-        Fica só neste mês. A próxima ocorrência (mesmo dia, mês seguinte) só é criada quando
-        você marcar esta como paga.
+        Fica <strong>só neste mês</strong>. A próxima ocorrência (mesmo dia, mês seguinte) só é
+        criada quando você marcar esta como paga.
       </p>
 
       <label class="campo" id="campoParcelas" hidden>
@@ -88,7 +85,7 @@
         <input type="number" id="fParcelas" min="1" max="60" step="1" value="2">
       </label>
       <p class="dica" id="dicaParcelada" hidden>
-        Cria as parcelas todas de uma vez, uma por mês a partir do vencimento acima.
+        Cria <strong>todas as parcelas de uma vez</strong>, uma por mês a partir do vencimento acima.
       </p>
 
       <label class="campo">
@@ -104,6 +101,25 @@
   </div>
 </div>
 
+<!-- Modal: marcar como paga (com data escolhível) -->
+<div class="modal-camada" id="camadaPagar" hidden>
+  <div class="modal-fundo" id="pagarFundo"></div>
+  <div class="modal-caixa modal-caixa--pequena" role="dialog" aria-modal="true" aria-labelledby="pagarTitulo">
+    <h2 id="pagarTitulo">Marcar como paga</h2>
+    <p><strong id="pagarDescricao"></strong> · <span id="pagarValor" class="num"></span></p>
+    <label class="campo">
+      <span class="rotulo">Quando você pagou?</span>
+      <input type="date" id="fPagoEm">
+    </label>
+    <p class="dica" id="pagarAvisoRecorrente" hidden></p>
+    <div class="form-acoes">
+      <button type="button" class="botao botao-fantasma" id="pagarCancelar">Cancelar</button>
+      <button type="button" class="botao botao-principal" id="pagarConfirmar">Confirmar pagamento</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: confirmação genérica -->
 <div class="modal-camada" id="camadaConfirm" hidden>
   <div class="modal-fundo" id="confirmFundo"></div>
   <div class="modal-caixa modal-caixa--pequena" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitulo">
@@ -117,10 +133,13 @@
 
 <script src="js/datas.js"></script>
 <script src="js/contas.js"></script>
+<script src="js/categorias.js"></script>
 <script src="js/filtros.js"></script>
+<script src="js/analise.js"></script>
 <script src="js/armazenamento.js"></script>
 <script src="js/formatar.js"></script>
 <script src="js/icones.js"></script>
+<script src="js/graficos.js"></script>
 <script src="js/render.js"></script>
 <script src="js/app.js"></script>
 </body>

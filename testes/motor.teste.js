@@ -9,6 +9,8 @@ var assert = require('assert');
 var Datas = require('../app/js/datas.js');
 var Contas = require('../app/js/contas.js');
 var Filtros = require('../app/js/filtros.js');
+var Analise = require('../app/js/analise.js');
+var Categorias = require('../app/js/categorias.js');
 
 var total = 0, falhas = [];
 
@@ -268,6 +270,127 @@ teste('aplicar: combina período + status + categoria + tipo', function () {
 teste('total: soma os valores da lista filtrada', function () {
   var lista = [{ valor: 100 }, { valor: 50.5 }, { valor: 20 }];
   assert.strictEqual(Filtros.total(lista), 170.5);
+});
+
+// ============================================================
+secao('Análise — os números do dashboard');
+// ============================================================
+
+function contaFixa(tipo, desc, cat, valor, venc, status) {
+  var c = Contas.novaConta({ tipo: tipo, descricao: desc, categoria: cat, valor: valor, vencimento: venc });
+  if (status) c.status = status;
+  return c;
+}
+
+var CENARIO = [
+  contaFixa('pagar', 'Aluguel', 'casa', 1500, '2026-07-05', 'pago'),
+  contaFixa('pagar', 'Água', 'casa', 100, '2026-07-10', 'pendente'),
+  contaFixa('pagar', 'TV', 'cartão', 300, '2026-07-15', 'pendente'),
+  contaFixa('pagar', 'Uber', 'transporte', 50, '2026-07-28', 'pendente'),
+  contaFixa('receber', 'Freela', 'trabalho', 2000, '2026-07-20', 'pendente'),
+  contaFixa('pagar', 'Aluguel', 'casa', 1500, '2026-06-05', 'pago')  // mês anterior
+];
+
+teste('resumoDoMes: totais, progresso e contagem de atrasadas', function () {
+  var r = Analise.resumoDoMes(CENARIO, 2026, 7, '2026-07-26');
+  assert.strictEqual(r.totalPagar, 1950);        // 1500+100+300+50
+  assert.strictEqual(r.totalReceber, 2000);
+  assert.strictEqual(r.totalPago, 1500);
+  assert.strictEqual(r.totalFalta, 450);          // 100+300+50
+  assert.strictEqual(r.saldo, 50);                // 2000-1950
+  assert.strictEqual(r.qtdPagar, 4);
+  assert.strictEqual(r.qtdPago, 1);
+  // Água (10/07) e TV (15/07) já venceram em 26/07 e estão pendentes
+  assert.strictEqual(r.qtdAtrasadas, 2);
+  assert.strictEqual(r.totalAtrasado, 400);
+  assert.ok(Math.abs(r.progresso - (1500 / 1950)) < 0.0001);
+});
+
+teste('resumoDoMes: mês sem conta nenhuma não quebra nem divide por zero', function () {
+  var r = Analise.resumoDoMes(CENARIO, 2026, 12, '2026-07-26');
+  assert.strictEqual(r.totalPagar, 0);
+  assert.strictEqual(r.progresso, 0);
+  assert.strictEqual(r.qtdPagar, 0);
+});
+
+teste('comparativoMesAnterior: julho (1950) vs junho (1500) = +30%', function () {
+  var c = Analise.comparativoMesAnterior(CENARIO, 2026, 7, '2026-07-26');
+  assert.strictEqual(c.anterior, 1500);
+  assert.strictEqual(c.atual, 1950);
+  assert.strictEqual(Math.round(c.variacao), 30);
+});
+
+teste('comparativoMesAnterior: mês anterior zerado devolve variacao null (não divide por zero)', function () {
+  var c = Analise.comparativoMesAnterior(CENARIO, 2026, 6, '2026-07-26');
+  assert.strictEqual(c.variacao, null);
+});
+
+teste('porCategoria: ordena do maior pro menor e soma 100%', function () {
+  var cats = Analise.porCategoria(CENARIO, '2026-07-01', '2026-07-31', 'pagar');
+  assert.strictEqual(cats[0].categoria, 'casa');
+  assert.strictEqual(cats[0].valor, 1600);       // 1500+100
+  assert.strictEqual(cats[1].categoria, 'cartão');
+  assert.strictEqual(cats[2].categoria, 'transporte');
+  var somaPct = cats.reduce(function (s, c) { return s + c.percentual; }, 0);
+  assert.ok(Math.abs(somaPct - 100) < 0.0001);
+  assert.ok(cats[0].cor, 'categoria deve vir com cor');
+});
+
+teste('porCategoria: período vazio devolve lista vazia, sem NaN', function () {
+  var cats = Analise.porCategoria(CENARIO, '2026-12-01', '2026-12-31', 'pagar');
+  assert.strictEqual(cats.length, 0);
+});
+
+teste('porSemana: distribui pelas semanas da RN003 e marca a semana atual', function () {
+  var semanas = Analise.porSemana(CENARIO, 2026, 7, 'pagar', '2026-07-26');
+  // julho/2026: dia 1 é quarta -> S1 = 01-05, S2 = 06-12, S3 = 13-19, S4 = 20-26, S5 = 27-31
+  assert.strictEqual(semanas[0].total, 1500);   // Aluguel 05/07
+  assert.strictEqual(semanas[1].total, 100);    // Água 10/07
+  assert.strictEqual(semanas[2].total, 300);    // TV 15/07
+  assert.strictEqual(semanas[3].total, 0);
+  assert.strictEqual(semanas[4].total, 50);     // Uber 28/07
+  assert.strictEqual(semanas[0].pago, 1500);
+  var atuais = semanas.filter(function (s) { return s.ehSemanaAtual; });
+  assert.strictEqual(atuais.length, 1, 'exatamente uma semana deve ser a atual');
+  assert.strictEqual(atuais[0].numero, 4);      // 26/07 cai na S4 (20-26)
+});
+
+teste('proximosVencimentos: atrasadas primeiro, ordenado por urgência', function () {
+  var prox = Analise.proximosVencimentos(CENARIO, '2026-07-26', 5, 'pagar');
+  assert.strictEqual(prox[0].conta.descricao, 'Água');   // -16 dias
+  assert.strictEqual(prox[0].dias, -16);
+  assert.strictEqual(prox[1].conta.descricao, 'TV');     // -11 dias
+  assert.strictEqual(prox[2].conta.descricao, 'Uber');   // +2 dias
+  assert.strictEqual(prox[2].dias, 2);
+});
+
+teste('proximosVencimentos: nunca inclui conta já paga', function () {
+  var prox = Analise.proximosVencimentos(CENARIO, '2026-07-01', 10, 'pagar');
+  var pagas = prox.filter(function (p) { return p.conta.status === 'pago'; });
+  assert.strictEqual(pagas.length, 0);
+});
+
+teste('rotuloPrazo: cobre hoje, amanhã, futuro, ontem e passado', function () {
+  assert.strictEqual(Analise.rotuloPrazo(0), 'vence hoje');
+  assert.strictEqual(Analise.rotuloPrazo(1), 'vence amanhã');
+  assert.strictEqual(Analise.rotuloPrazo(5), 'vence em 5 dias');
+  assert.strictEqual(Analise.rotuloPrazo(-1), 'atrasada há 1 dia');
+  assert.strictEqual(Analise.rotuloPrazo(-7), 'atrasada há 7 dias');
+});
+
+teste('Categorias: mesma categoria sempre recebe a mesma cor (determinístico)', function () {
+  var a = Categorias.cor('academia');
+  var b = Categorias.cor('Academia');   // normaliza caixa
+  var c = Categorias.cor('academia');
+  assert.strictEqual(a, b);
+  assert.strictEqual(a, c);
+  assert.ok(Categorias.PALETA.indexOf(a) !== -1, 'cor deve estar na paleta');
+});
+
+teste('Categorias: conhecidas têm cor e ícone próprios', function () {
+  assert.strictEqual(Categorias.icone('cartão'), 'cartao');
+  assert.strictEqual(Categorias.icone('casa'), 'casa');
+  assert.strictEqual(Categorias.icone('inexistente-xyz'), 'tag');
 });
 
 // ============================================================

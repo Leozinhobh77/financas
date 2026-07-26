@@ -5,13 +5,14 @@
 
 ## Planos ativos
 
-- **0001** - MVP — Contas a pagar e a receber | 🚧 Em andamento | 0 de 9 tarefas (0%)
+_Nenhum plano ativo._
 
-**Concluídos:** 0 plano(s) arquivado(s).
+**Concluídos:** 2 plano(s) arquivado(s).
 
 ## Últimos commits
 
-_Repositorio sem commits ainda._
+- 2026-07-26 fix: guarda.ps1 nao bloqueia mais push legitimo em outro repositorio
+- 2026-07-26 feat: MVP — controle de contas a pagar e a receber
 
-[ok] Working tree limpo na geracao.
+[!] 13 arquivo(s) sem commit na hora da geracao.
 
