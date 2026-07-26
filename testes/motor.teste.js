@@ -1,0 +1,282 @@
+/**
+ * Testes do motor (datas.js + contas.js) — Node puro, sem navegador. Funções puras, sem
+ * efeito colateral, então dá para varrer exaustivamente sem custo.
+ *
+ * Rodar: node testes/motor.teste.js
+ */
+'use strict';
+var assert = require('assert');
+var Datas = require('../app/js/datas.js');
+var Contas = require('../app/js/contas.js');
+var Filtros = require('../app/js/filtros.js');
+
+var total = 0, falhas = [];
+
+function teste(nome, fn) {
+  total++;
+  try {
+    fn();
+    process.stdout.write('  ✓ ' + nome + '\n');
+  } catch (e) {
+    falhas.push({ nome: nome, erro: e });
+    process.stdout.write('  ✗ ' + nome + '  ->  ' + e.message + '\n');
+  }
+}
+
+function secao(titulo) {
+  process.stdout.write('\n' + titulo + '\n');
+}
+
+// ============================================================
+secao('RN003 — semanas do mês (segunda a domingo, numerada por mês)');
+// ============================================================
+
+teste('RN003-1: mês cujo dia 1 cai numa quarta -> semana 1 = quarta a domingo (5 dias)', function () {
+  // julho/2026: dia 1 é quarta-feira
+  var semanas = Datas.semanasDoMes(2026, 7);
+  assert.strictEqual(new Date(2026, 6, 1).getDay(), 3, 'pré-condição: 01/07/2026 é quarta-feira');
+  assert.strictEqual(semanas[0].numero, 1);
+  assert.strictEqual(semanas[0].inicio, '2026-07-01');
+  assert.strictEqual(semanas[0].fim, '2026-07-05');
+});
+
+teste('RN003-2: mês de 30 dias terminando numa quinta -> última semana = segunda a quinta (4 dias)', function () {
+  // abril/2026: dia 30 é quinta-feira (dia 1 é quarta)
+  assert.strictEqual(new Date(2026, 3, 30).getDay(), 4, 'pré-condição: 30/04/2026 é quinta-feira');
+  var semanas = Datas.semanasDoMes(2026, 4);
+  var ultima = semanas[semanas.length - 1];
+  assert.strictEqual(ultima.inicio, '2026-04-27'); // segunda
+  assert.strictEqual(ultima.fim, '2026-04-30');    // quinta
+  assert.strictEqual(new Date(2026, 3, 27).getDay(), 1, 'dia 27 deve ser segunda');
+});
+
+teste('RN003-3: mês cujo dia 1 é segunda-feira -> semana 1 já é cheia (7 dias)', function () {
+  // junho/2026: dia 1 é segunda-feira
+  assert.strictEqual(new Date(2026, 5, 1).getDay(), 1, 'pré-condição: 01/06/2026 é segunda-feira');
+  var semanas = Datas.semanasDoMes(2026, 6);
+  assert.strictEqual(semanas[0].inicio, '2026-06-01');
+  assert.strictEqual(semanas[0].fim, '2026-06-07');
+});
+
+teste('RN003-4: mês cujo dia 1 é domingo -> semana 1 tem só 1 dia', function () {
+  // março/2026: dia 1 é domingo
+  assert.strictEqual(new Date(2026, 2, 1).getDay(), 0, 'pré-condição: 01/03/2026 é domingo');
+  var semanas = Datas.semanasDoMes(2026, 3);
+  assert.strictEqual(semanas[0].inicio, '2026-03-01');
+  assert.strictEqual(semanas[0].fim, '2026-03-01');
+  assert.strictEqual(semanas[1].inicio, '2026-03-02'); // segunda seguinte
+});
+
+teste('RN003-5: nenhuma semana cruza o limite do mês, nenhum dia sobra ou repete', function () {
+  for (var ano = 2024; ano <= 2028; ano++) {
+    for (var mes = 1; mes <= 12; mes++) {
+      var semanas = Datas.semanasDoMes(ano, mes);
+      var totalDias = Datas.diasDoMes(ano, mes);
+      var diaEsperado = 1;
+      for (var i = 0; i < semanas.length; i++) {
+        var s = semanas[i];
+        assert.strictEqual(s.inicio, Datas.formatarISO(ano, mes, diaEsperado),
+          ano + '-' + mes + ' semana ' + s.numero + ' deveria começar em ' + diaEsperado);
+        var diaInicio = Datas.parseISO(s.inicio).dia;
+        var diaFim = Datas.parseISO(s.fim).dia;
+        // toda semana (exceto a 1ª, que pode começar em qualquer dia) começa numa segunda
+        if (i > 0) assert.strictEqual(new Date(ano, mes - 1, diaInicio).getDay(), 1);
+        // toda semana (exceto a última) termina num domingo
+        if (i < semanas.length - 1) assert.strictEqual(new Date(ano, mes - 1, diaFim).getDay(), 0);
+        diaEsperado = diaFim + 1;
+      }
+      assert.strictEqual(diaEsperado, totalDias + 1, ano + '-' + mes + ': última semana deve terminar no último dia do mês');
+    }
+  }
+});
+
+teste('RN003-6: semanaDe() acha a semana certa para uma data qualquer', function () {
+  var r = Datas.semanaDe('2026-07-15'); // julho/2026, dia 15
+  assert.strictEqual(r.mes, 7);
+  assert.ok(Datas.estaEntre('2026-07-15', r.inicio, r.fim));
+});
+
+// ============================================================
+secao('RN001 — recorrência só avança quando marcada paga');
+// ============================================================
+
+teste('RN001-1: exemplo do usuário — água R$100, vence 10/07, paga em 10/07 -> próxima 10/08', function () {
+  var agua = Contas.novaConta({
+    tipo: 'pagar', descricao: 'Água', categoria: 'casa', valor: 100,
+    vencimento: '2026-07-10', recorrente: true
+  });
+  agua.status = 'pago';
+  agua.pagoEm = '2026-07-10';
+
+  var proxima = Contas.gerarProximaRecorrencia(agua);
+  assert.strictEqual(proxima.descricao, 'Água');
+  assert.strictEqual(proxima.valor, 100);
+  assert.strictEqual(proxima.vencimento, '2026-08-10');
+  assert.strictEqual(proxima.status, 'pendente');
+  assert.strictEqual(proxima.recorrente, true);
+  assert.strictEqual(proxima.recorrenciaOrigemId, agua.id);
+});
+
+teste('RN001-2: vencimento dia 31 -> mês seguinte sem dia 31 ajusta pro último dia', function () {
+  var conta = Contas.novaConta({
+    tipo: 'pagar', descricao: 'Assinatura', valor: 50, vencimento: '2026-01-31', recorrente: true
+  });
+  conta.status = 'pago';
+  var proxima = Contas.gerarProximaRecorrencia(conta);
+  assert.strictEqual(proxima.vencimento, '2026-02-28'); // 2026 não é bissexto
+});
+
+teste('RN001-3: vencimento dia 31 em ano bissexto ajusta pro dia 29', function () {
+  var conta = Contas.novaConta({
+    tipo: 'pagar', descricao: 'Assinatura', valor: 50, vencimento: '2028-01-31', recorrente: true
+  });
+  var proxima = Contas.gerarProximaRecorrencia(conta);
+  assert.strictEqual(proxima.vencimento, '2028-02-29'); // 2028 é bissexto
+});
+
+teste('RN001-4: conta NÃO recorrente não gera próxima, mesmo paga', function () {
+  var conta = Contas.novaConta({ tipo: 'pagar', descricao: 'Mercado', valor: 200, vencimento: '2026-07-05' });
+  conta.status = 'pago';
+  var proxima = Contas.gerarProximaRecorrencia(conta);
+  assert.strictEqual(proxima, null);
+});
+
+teste('RN001-5: gerarProximaRecorrencia é chamado apenas no fluxo de pagamento — não existe geração por tempo passando (verificação estrutural: a função não olha para "hoje")', function () {
+  var fonte = Contas.gerarProximaRecorrencia.toString();
+  assert.ok(fonte.indexOf('Datas.hoje') === -1, 'a função de recorrência não deve depender da data de hoje');
+});
+
+// ============================================================
+secao('RN002 — parcelamento gera a série inteira de uma vez');
+// ============================================================
+
+teste('RN002-1: exemplo do usuário — TV 3x de R$100 a partir de 15/07', function () {
+  var parcelas = Contas.gerarParcelas({
+    tipo: 'pagar', descricao: 'TV', categoria: 'cartão', valor: 100, vencimento: '2026-07-15'
+  }, 3);
+
+  assert.strictEqual(parcelas.length, 3);
+  assert.strictEqual(parcelas[0].vencimento, '2026-07-15');
+  assert.strictEqual(parcelas[1].vencimento, '2026-08-15');
+  assert.strictEqual(parcelas[2].vencimento, '2026-09-15');
+  parcelas.forEach(function (p, i) {
+    assert.strictEqual(p.valor, 100);
+    assert.strictEqual(p.status, 'pendente');
+    assert.strictEqual(p.parcela.atual, i + 1);
+    assert.strictEqual(p.parcela.total, 3);
+  });
+  // mesmo grupoId em todas (para excluir a série inteira depois — RN005)
+  var grupo = parcelas[0].parcela.grupoId;
+  parcelas.forEach(function (p) { assert.strictEqual(p.parcela.grupoId, grupo); });
+});
+
+teste('RN002-2: compra à vista no cartão = parcelamento 1x, mesmo motor', function () {
+  var parcelas = Contas.gerarParcelas({ tipo: 'pagar', descricao: 'Mercado cartão', valor: 80, vencimento: '2026-07-20' }, 1);
+  assert.strictEqual(parcelas.length, 1);
+  assert.strictEqual(parcelas[0].parcela.atual, 1);
+  assert.strictEqual(parcelas[0].parcela.total, 1);
+});
+
+teste('RN002-3: parcelas atravessando virada de ano', function () {
+  var parcelas = Contas.gerarParcelas({ tipo: 'pagar', descricao: 'Notebook', valor: 300, vencimento: '2026-11-20' }, 4);
+  assert.strictEqual(parcelas[0].vencimento, '2026-11-20');
+  assert.strictEqual(parcelas[1].vencimento, '2026-12-20');
+  assert.strictEqual(parcelas[2].vencimento, '2027-01-20');
+  assert.strictEqual(parcelas[3].vencimento, '2027-02-20');
+});
+
+// ============================================================
+secao('RN004 — "atrasada" é sempre calculado, nunca gravado');
+// ============================================================
+
+teste('RN004-1: pendente com vencimento no passado = atrasada', function () {
+  var conta = Contas.novaConta({ tipo: 'pagar', descricao: 'Luz', valor: 90, vencimento: '2026-01-01' });
+  assert.strictEqual(Contas.estaAtrasada(conta, '2026-07-26'), true);
+  assert.strictEqual(Contas.situacao(conta, '2026-07-26'), 'atrasada');
+});
+
+teste('RN004-2: paga com vencimento no passado NÃO é atrasada', function () {
+  var conta = Contas.novaConta({ tipo: 'pagar', descricao: 'Luz', valor: 90, vencimento: '2026-01-01' });
+  conta.status = 'pago';
+  assert.strictEqual(Contas.estaAtrasada(conta, '2026-07-26'), false);
+  assert.strictEqual(Contas.situacao(conta, '2026-07-26'), 'paga');
+});
+
+teste('RN004-3: pendente com vencimento hoje NÃO é atrasada ainda', function () {
+  var conta = Contas.novaConta({ tipo: 'pagar', descricao: 'Água', valor: 100, vencimento: '2026-07-26' });
+  assert.strictEqual(Contas.estaAtrasada(conta, '2026-07-26'), false);
+  assert.strictEqual(Contas.situacao(conta, '2026-07-26'), 'pendente');
+});
+
+// ============================================================
+secao('Motor de datas — utilidades gerais');
+// ============================================================
+
+teste('somarMeses: caso simples', function () {
+  assert.strictEqual(Datas.somarMeses('2026-03-10', 1), '2026-04-10');
+  assert.strictEqual(Datas.somarMeses('2026-12-10', 1), '2027-01-10');
+});
+
+teste('diasDoMes: fevereiro bissexto vs. não-bissexto', function () {
+  assert.strictEqual(Datas.diasDoMes(2028, 2), 29);
+  assert.strictEqual(Datas.diasDoMes(2026, 2), 28);
+});
+
+teste('semanaCalendarioDe: segunda a domingo real, independente de mês', function () {
+  var r = Datas.semanaCalendarioDe('2026-07-15'); // quarta-feira
+  assert.strictEqual(new Date(Datas.parseISO(r.inicio).ano, Datas.parseISO(r.inicio).mes - 1, Datas.parseISO(r.inicio).dia).getDay(), 1);
+  assert.strictEqual(new Date(Datas.parseISO(r.fim).ano, Datas.parseISO(r.fim).mes - 1, Datas.parseISO(r.fim).dia).getDay(), 0);
+});
+
+// ============================================================
+secao('Filtros — período, status, categoria');
+// ============================================================
+
+teste('mes-atual: intervalo cobre o mês inteiro de "hoje"', function () {
+  var r = Filtros.periodoParaIntervalo({ tipo: 'mes-atual' }, '2026-07-15');
+  assert.strictEqual(r.inicio, '2026-07-01');
+  assert.strictEqual(r.fim, '2026-07-31');
+});
+
+teste('proximo-mes: a partir de dezembro vira janeiro do ano seguinte', function () {
+  var r = Filtros.periodoParaIntervalo({ tipo: 'proximo-mes' }, '2026-12-10');
+  assert.strictEqual(r.inicio, '2027-01-01');
+  assert.strictEqual(r.fim, '2027-01-31');
+});
+
+teste('semana-atual: usa a semana-do-mês de "hoje" (não cruza limite de mês)', function () {
+  var r = Filtros.periodoParaIntervalo({ tipo: 'semana-atual' }, '2026-07-15');
+  var esperado = Datas.semanaDe('2026-07-15');
+  assert.strictEqual(r.inicio, esperado.inicio);
+  assert.strictEqual(r.fim, esperado.fim);
+});
+
+teste('aplicar: combina período + status + categoria + tipo', function () {
+  var lista = [
+    Contas.novaConta({ tipo: 'pagar', descricao: 'Água', categoria: 'casa', valor: 100, vencimento: '2026-07-10' }),
+    Contas.novaConta({ tipo: 'pagar', descricao: 'Internet', categoria: 'casa', valor: 90, vencimento: '2026-08-10' }),
+    Contas.novaConta({ tipo: 'receber', descricao: 'Freela', categoria: 'trabalho', valor: 500, vencimento: '2026-07-20' })
+  ];
+  var soPagarCasaJulho = Filtros.aplicar(lista, {
+    periodo: { tipo: 'mes-especifico', ano: 2026, mes: 7 },
+    status: 'todos', categoria: 'casa', tipo: 'pagar'
+  }, '2026-07-01');
+  assert.strictEqual(soPagarCasaJulho.length, 1);
+  assert.strictEqual(soPagarCasaJulho[0].descricao, 'Água');
+});
+
+teste('total: soma os valores da lista filtrada', function () {
+  var lista = [{ valor: 100 }, { valor: 50.5 }, { valor: 20 }];
+  assert.strictEqual(Filtros.total(lista), 170.5);
+});
+
+// ============================================================
+process.stdout.write('\n' + '='.repeat(60) + '\n');
+if (falhas.length === 0) {
+  process.stdout.write('TUDO PASSOU — ' + total + ' de ' + total + ' testes\n');
+} else {
+  process.stdout.write('FALHAS: ' + falhas.length + ' de ' + total + '\n');
+  falhas.forEach(function (f) { process.stdout.write('  - ' + f.nome + ': ' + f.erro.message + '\n'); });
+  process.exitCode = 1;
+}
+process.stdout.write('='.repeat(60) + '\n');

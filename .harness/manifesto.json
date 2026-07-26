@@ -1,0 +1,33 @@
+{
+  "_leia": "Identidade do harness deste projeto. Lido por /harness doctor, status e upgrade.",
+
+  "projeto": "Financas",
+  "tier": "T2+",
+  "versao_skill": "1.1.2",
+  "criado_em": "2026-07-26",
+  "atualizado_em": "2026-07-26",
+  "adotado": false,
+
+  "arquivos": [
+    "AGENTS.md",
+    "CLAUDE.md",
+    "ESTADO.md",
+    ".gitignore",
+    ".claude/settings.json",
+    ".claude/hooks/guarda.ps1",
+    ".claude/hooks/pos-edicao.ps1",
+    ".claude/hooks/porta-saida.ps1",
+    "docs/GOVERNANCA.md",
+    "docs/PRD.md",
+    "docs/SPEC.md",
+    "docs/REGRAS-DE-NEGOCIO.md",
+    "docs/DECISOES.md",
+    "Planos/MANUAL.md",
+    "Planos/MODELO-DE-PLANO.md",
+    "Planos/INDICE.md",
+    ".harness/guardas.json"
+  ],
+
+  "customizados": [],
+  "_customizados": "Arquivos que o usuario editou a mao. /harness upgrade NUNCA sobrescreve nada listado aqui."
+}

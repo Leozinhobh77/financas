@@ -1,0 +1,43 @@
+# ============================================================
+# Guardas de dado — a primeira coisa que nasce num harness.
+# Perder dado ou vazar dado não tem desfazer, por isso estas
+# linhas entram preventivamente (única exceção da Lei 1).
+# ============================================================
+# Dados financeiros reais do usuário (localStorage não versiona, mas o
+# backup exportado em .json pelo próprio app pode acabar salvo aqui dentro).
+backups/
+*backup*.json
+financas-backup-*.json
+dados-reais*.json
+
+# Saída de testes (screenshots) — não é fonte
+testes/e2e/capturas/
+
+# Instrumentação do harness (local, não versionar)
+.harness/log-guardas.jsonl
+.harness/abatidos/
+.harness/hibernado/
+
+# Lock files do Excel (arquivo aberto)
+~$*.xlsx
+**/~$*.xlsx
+
+# Dependências e build
+node_modules/
+dist/
+build/
+__pycache__/
+*.pyc
+
+# Ambiente e segredos — NUNCA versionar
+.env
+.env.*
+*.key
+*.pem
+
+# Sistema operacional
+Thumbs.db
+.DS_Store
+
+# Editor
+.vscode/

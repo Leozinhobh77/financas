@@ -1,0 +1,33 @@
+{
+  "_leia": "Guardas mecanicas lidas por .claude/hooks/guarda.ps1. Novas guardas entram AQUI, como dado - nunca editando o script. Use /harness learn para adicionar com procedencia.",
+  "_campos": {
+    "nome": "identificador curto, kebab-case. Aparece no log-guardas.jsonl.",
+    "padrao": "arquivos_protegidos = curinga estilo -like sobre o caminho relativo com barras /. comandos_proibidos = regex.",
+    "motivo": "que erro isto previne. Obrigatorio (Lei 1).",
+    "procedencia": "o caso real que gerou esta guarda, com data."
+  },
+
+  "arquivos_protegidos": [
+    {
+      "nome": "protege-estado-gerado",
+      "padrao": "ESTADO.md",
+      "motivo": "ESTADO.md e gerado por /harness fix a partir dos Planos/ e do git. Editar a mao cria divergencia silenciosa.",
+      "procedencia": "regra de nascimento do harness - arquivo derivado nunca se edita"
+    }
+  ],
+
+  "comandos_proibidos": [
+    {
+      "nome": "sem-push",
+      "padrao": "git\\s+push",
+      "motivo": "Repositorio local e privado. Publicar exige decisao explicita do usuario.",
+      "procedencia": "regra de nascimento - dado do projeto nao vai para remoto sem autorizacao"
+    },
+    {
+      "nome": "sem-reset-hard",
+      "padrao": "git\\s+reset\\s+--hard",
+      "motivo": "Descarta trabalho nao commitado sem desfazer. Peca confirmacao ao usuario antes.",
+      "procedencia": "regra de nascimento - acao destrutiva sem rede de seguranca"
+    }
+  ]
+}
