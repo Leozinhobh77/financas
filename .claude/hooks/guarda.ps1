@@ -11,6 +11,10 @@
 #>
 $ErrorActionPreference = 'Stop'
 
+# Sem isto, qualquer acento no JSON de entrada (nome de pasta, comando) chega corrompido -
+# "Usuario" virava lixo tipo "Usu[bytes]rio" e quebrava qualquer comparacao de caminho.
+try { [Console]::InputEncoding = [System.Text.Encoding]::UTF8 } catch { }
+
 try { $bruto = [Console]::In.ReadToEnd() } catch { exit 0 }
 if ([string]::IsNullOrWhiteSpace($bruto)) { exit 0 }
 
@@ -18,6 +22,17 @@ try { $ev = $bruto | ConvertFrom-Json } catch { exit 0 }
 
 $raiz = $env:CLAUDE_PROJECT_DIR
 if (-not $raiz) { $raiz = (Get-Location).Path }
+
+# $env:CLAUDE_PROJECT_DIR chega em formato inconsistente (visto na pratica: barra normal e
+# letra de unidade minuscula, "c:/Users/..."). Normaliza uma vez aqui para todo o resto do
+# script comparar sempre a mesma forma canonica (Resolve-Path sempre devolve "C:\Users\...").
+function Normalizar-Caminho {
+    param([string]$Caminho)
+    if (-not $Caminho) { return $Caminho }
+    try { return (Resolve-Path -LiteralPath $Caminho -ErrorAction Stop).Path.TrimEnd('\', '/') }
+    catch { return $Caminho.Replace('/', '\').TrimEnd('\', '/') }
+}
+$raiz = Normalizar-Caminho $raiz
 
 $ferramenta = [string]$ev.tool_name
 $alvo = ''
@@ -66,7 +81,28 @@ if ($alvo -and $ferramenta -match '^(Write|Edit|NotebookEdit)$' -and $g.arquivos
 }
 
 # ---------- 2. comandos proibidos ----------
-if ($comando -and $ferramenta -eq 'Bash' -and $g.comandos_proibidos) {
+# So bloqueia se o comando agir DENTRO deste projeto. Se o comando comeca com "cd <outro
+# caminho> && ..." apontando pra FORA da raiz, ele nao mexe neste repositorio - nao e
+# trabalho desta guarda impedir. Sem isso, "cd ..\outro-repo && git push" era bloqueado so
+# por conter o texto "git push", mesmo mirando um repositorio sem nenhuma relacao com este
+# projeto. Achado ao vivo: a guarda de Financas bloqueou um push legitimo pro repositorio
+# harness. Ver P006 em memoria/PADROES.md da skill.
+$dirEfetivo = $raiz
+if ($comando -match '^\s*cd\s+"?([^"&;]+?)"?\s*(&&|;)') {
+    $caminhoCd = $Matches[1].Trim()
+    # o Bash deste ambiente usa caminho estilo Git Bash (/c/Users/...), nao Windows
+    # (C:\Users\...) - Resolve-Path so entende o segundo formato. Converte antes de resolver.
+    if ($caminhoCd -match '^/([A-Za-z])/(.*)$') {
+        $caminhoCd = "$($Matches[1].ToUpper()):\$($Matches[2] -replace '/', '\')"
+    }
+    try {
+        $alvoCd = Resolve-Path -LiteralPath $caminhoCd -ErrorAction Stop
+        $dirEfetivo = $alvoCd.Path
+    } catch { }
+}
+$mexeNesteProjeto = $dirEfetivo.TrimEnd('\', '/').StartsWith($raiz.TrimEnd('\', '/'), [StringComparison]::OrdinalIgnoreCase)
+
+if ($comando -and $ferramenta -eq 'Bash' -and $g.comandos_proibidos -and $mexeNesteProjeto) {
     foreach ($regra in $g.comandos_proibidos) {
         if ($comando -match $regra.padrao) {
             $bloqueios.Add("BLOQUEADO: comando proibido neste projeto. Motivo: $($regra.motivo)")
