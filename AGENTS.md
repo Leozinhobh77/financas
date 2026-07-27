@@ -22,7 +22,8 @@ duplo clique em app/index.html
 node testes/motor.teste.js
 
 # Rodar os testes de interface (Playwright)
-python testes/e2e/rodar.py   (ver testes/e2e/README.md)
+python testes/e2e/test_app_financas.py   # fluxos e regras de negócio
+python testes/e2e/test_sem_corte.py      # layout: nenhum valor cortado em 8 larguras
 ```
 
 ## 3. Regras de ouro (não negociáveis)

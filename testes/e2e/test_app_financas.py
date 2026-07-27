@@ -256,8 +256,11 @@ with sync_playwright() as p:
     checar("falta pagar" in txt_painel, "PAINEL: rótulo 'Falta pagar' ausente")
     checar("total do mês" in txt_painel, "PAINEL: bloco 'Total do mês' ausente")
     checar("já pago" in txt_painel, "PAINEL: bloco 'Já pago' ausente")
-    checar("meta / dia" in txt_painel or "ficou pendente" in txt_painel,
-           "PAINEL: terceiro bloco (meta/dia ou ficou pendente) ausente")
+    checar("meta por dia" in txt_painel or "ficou pendente" in txt_painel,
+           "PAINEL: bloco de destaque (meta por dia / ficou pendente) ausente")
+    # o bloco de destaque ocupa a largura toda no celular — é a defesa contra o corte
+    checar(page.locator(".pp-bloco--largo").count() > 0,
+           "PAINEL: bloco de destaque não está em largura cheia")
 
     page.click('.chip[data-valor="paga"]')
     page.wait_for_timeout(300)

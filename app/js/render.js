@@ -302,31 +302,45 @@
     // acompanha o período filtrado: dizer "total do mês" numa visão de semana é mentira
     var rotuloTotal = ehReceber ? 'Total previsto' : ('Total ' + (nomePeriodo || 'do período'));
 
-    // terceiro bloco: meta/dia (pagar, período aberto) · ficou pendente (encerrado) · nada (receber)
-    var terceiroBloco;
+    // Bloco de destaque, em largura cheia no celular: o número que exige ação.
+    // Varia por contexto — meta/dia (pagar, período aberto), ficou pendente (encerrado),
+    // atrasado (receber).
+    function blocoLargo(classeExtra, rotulo, valorHTML, nota) {
+      return (
+        '<div class="pp-bloco pp-bloco--largo' + (classeExtra ? ' ' + classeExtra : '') + '">' +
+          '<span class="pp-bloco-rotulo">' + rotulo + '</span>' +
+          '<span class="pp-bloco-linha">' +
+            valorHTML +
+            '<span class="pp-bloco-nota">' + esc(nota) + '</span>' +
+          '</span>' +
+        '</div>'
+      );
+    }
+
+    var blocoDestaque;
     if (ehReceber) {
-      terceiroBloco =
-        '<div class="pp-bloco">' +
-          '<span class="pp-bloco-rotulo">Atrasado</span>' +
-          '<span class="pp-bloco-valor' + (resumo.atrasado > 0 ? ' v-negativo' : '') + '">' +
-            Formatar.dinheiro(resumo.atrasado) + '</span>' +
-          '<span class="pp-bloco-nota">' + resumo.qtdAtrasada + ' conta(s)</span>' +
-        '</div>';
+      blocoDestaque = blocoLargo(
+        resumo.atrasado > 0 ? 'pp-bloco--meta sem-critico' : '',
+        Icones.get('alerta') + 'Atrasado',
+        '<span class="pp-bloco-valor' + (resumo.atrasado > 0 ? '' : ' v-positivo') + '">' +
+          Formatar.dinheiro(resumo.atrasado) + '</span>',
+        resumo.qtdAtrasada === 0 ? 'nada atrasado' : resumo.qtdAtrasada + ' conta(s) vencida(s)'
+      );
     } else if (meta.encerrado) {
-      terceiroBloco =
-        '<div class="pp-bloco">' +
-          '<span class="pp-bloco-rotulo">Ficou pendente</span>' +
-          '<span class="pp-bloco-valor' + (resumo.falta > 0 ? ' v-negativo' : ' v-positivo') + '">' +
-            Formatar.dinheiro(resumo.falta) + '</span>' +
-          '<span class="pp-bloco-nota">período encerrado</span>' +
-        '</div>';
+      blocoDestaque = blocoLargo(
+        resumo.falta > 0 ? 'pp-bloco--meta sem-critico' : '',
+        Icones.get('calendario') + 'Ficou pendente',
+        '<span class="pp-bloco-valor' + (resumo.falta > 0 ? '' : ' v-positivo') + '">' +
+          Formatar.dinheiro(resumo.falta) + '</span>',
+        'período encerrado'
+      );
     } else {
-      terceiroBloco =
-        '<div class="pp-bloco pp-bloco--meta sem-' + meta.semaforo + '">' +
-          '<span class="pp-bloco-rotulo">' + Icones.get('raio') + 'Meta / dia</span>' +
-          '<span class="pp-bloco-valor">' + Formatar.dinheiro(meta.meta) + '</span>' +
-          '<span class="pp-bloco-nota">' + meta.dias + (meta.dias === 1 ? ' dia restante' : ' dias restantes') + '</span>' +
-        '</div>';
+      blocoDestaque = blocoLargo(
+        'pp-bloco--meta sem-' + meta.semaforo,
+        Icones.get('raio') + 'Meta por dia',
+        '<span class="pp-bloco-valor">' + Formatar.dinheiro(meta.meta) + '</span>',
+        meta.dias + (meta.dias === 1 ? ' dia restante' : ' dias restantes')
+      );
     }
 
     return (
@@ -351,6 +365,7 @@
           : '') +
 
         '<div class="pp-blocos">' +
+          blocoDestaque +
           '<div class="pp-bloco">' +
             '<span class="pp-bloco-rotulo">' + rotuloTotal + '</span>' +
             '<span class="pp-bloco-valor">' + Formatar.dinheiro(resumo.total) + '</span>' +
@@ -366,7 +381,6 @@
             '<span class="pp-bloco-valor v-positivo">' + Formatar.dinheiro(resumo.pago) + '</span>' +
             '<span class="pp-bloco-nota">' + resumo.qtdPaga + ' conta(s)</span>' +
           '</div>' +
-          terceiroBloco +
         '</div>' +
       '</section>'
     );

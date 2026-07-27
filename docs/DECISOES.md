@@ -14,6 +14,7 @@
 
 | # | Decisão | Data | Status |
 |---|---|---|---|
+| D005 | Painel: no máximo 2 colunas no celular, sem `overflow:hidden` em valor | 2026-07-27 | Ativa |
 | D004 | Filtro de status usa os valores de `situacao()` (`paga`, não `pago`) | 2026-07-27 | Ativa |
 | D003 | `guarda.ps1` normaliza caminho e força UTF-8 (evita falso positivo em push de outro repo) | 2026-07-26 | Ativa |
 | D002 | Guarda contra duplicar recorrência ao desmarcar/remarcar paga | 2026-07-26 | Ativa |
@@ -38,6 +39,28 @@ for acionada** (`docs/GOVERNANCA.md` §6).
 ---
 
 _(as decisões entram abaixo, mais nova primeiro)_
+
+### D005 — Painel: no máximo 2 colunas no celular, e valor nunca com `overflow: hidden` (2026-07-27)
+**Decisão:** os blocos do painel do período usam **no máximo 2 colunas em qualquer celular**
+(1 abaixo de 340px, 3 só a partir de 620px). O bloco de destaque — meta por dia, ou "ficou
+pendente", ou "atrasado" no `receber` — ocupa **largura cheia** no celular, com valor à esquerda
+e nota à direita. `.pp-bloco-valor` **não tem `overflow: hidden`**; usa
+`font-size: clamp(.78rem, 3.1vw, 1.08rem)` para encolher em tela estreita em vez de esconder.
+**Motivo:** com 3 colunas, `R$ 3.588,60` precisa de 94px e sobravam **85px** em telas de 412px+
+(Android grande, iPhone Pro Max). O `overflow: hidden` cortava o dígito **em silêncio** — sem
+erro, sem aviso, só um número errado na tela. Ironicamente os aparelhos **menores** funcionavam,
+porque caíam num breakpoint de 2 colunas: o bug só aparecia nas telas maiores.
+**Por que a meta ganha a largura cheia:** é o número de ação (total e já pago são consulta), é o
+único com semáforo — em largura cheia a cor vira faixa de status legível de longe — e assim o
+valor e a nota cabem lado a lado em vez de empilhados apertados.
+**Procedência:** relatado pelo usuário ("não consigo ver o valor total, os números são maiores
+que o próprio card"). Medido antes de qualquer alteração em 7 larguras reais: corte confirmado
+em 412px, 428px e 430px; OK de 360px a 393px.
+**Guarda mecânica criada:** `testes/e2e/test_sem_corte.py` mede `scrollWidth > clientWidth` em
+**8 larguras (320–430px)**, nas três telas, usando valores na casa do **milhão** de propósito.
+É esse teste que define o piso da fonte fluida — ele falhou a 360px com `R$ 1.234.567,89` e o
+piso foi calibrado até passar.
+**Relacionado:** RN009 (o painel), Plano 0004.
 
 ### D004 — Filtro de status usa os valores que `situacao()` produz (2026-07-27)
 **Decisão:** os chips de filtro de status em `app/js/app.js` passam a usar `'paga'` (não

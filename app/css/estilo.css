@@ -523,27 +523,54 @@ main { max-width: 900px; margin: 0 auto; padding: 1.15rem clamp(.9rem, 4vw, 2rem
   font-size: .76rem; color: var(--ink-3); margin-top: -.15rem;
 }
 
+/* CELULAR: no máximo 2 colunas. Com 3, "R$ 3.588,60" precisa de 94px e só sobravam 85 em
+   telas de 412px+ (Android grande, iPhone Pro Max) — o número era cortado em silêncio.
+   A meta vai em largura cheia: é o número de ação e o único com semáforo. */
 .pp-blocos {
-  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .5rem;
   margin-top: .35rem;
 }
+.pp-bloco--largo { grid-column: 1 / -1; }
+
 .pp-bloco {
   background: var(--superficie-2); border-radius: var(--r-md);
-  padding: .6rem .65rem; display: flex; flex-direction: column; gap: .15rem; min-width: 0;
+  padding: .6rem .7rem; display: flex; flex-direction: column; gap: .15rem; min-width: 0;
 }
 .pp-bloco-rotulo {
   display: inline-flex; align-items: center; gap: .25rem;
-  font-size: .66rem; font-weight: 750; color: var(--ink-3);
-  text-transform: uppercase; letter-spacing: .05em;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: .68rem; font-weight: 750; color: var(--ink-3);
+  text-transform: uppercase; letter-spacing: .05em; white-space: nowrap;
 }
-.pp-bloco-rotulo svg { width: .82rem; height: .82rem; flex-shrink: 0; }
+.pp-bloco-rotulo svg { width: .85rem; height: .85rem; flex-shrink: 0; }
+
+/* SEM overflow:hidden — dinheiro cortado em silêncio é pior que dinheiro apertado.
+   clamp() dá a folga: encolhe em tela estreita em vez de esconder dígito. O piso (.78rem)
+   foi calibrado pelo teste testes/e2e/test_sem_corte.py, que valida com valores na casa do
+   milhão a 320px — bem além do uso real, de propósito. */
 .pp-bloco-valor {
   font-family: var(--mono); font-variant-numeric: tabular-nums;
-  font-size: .95rem; font-weight: 780; letter-spacing: -.02em; white-space: nowrap;
-  overflow: hidden; text-overflow: ellipsis;
+  font-size: clamp(.78rem, 3.1vw, 1.08rem);
+  font-weight: 780; letter-spacing: -.03em; white-space: nowrap;
 }
-.pp-bloco-nota { font-size: .66rem; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pp-bloco-nota { font-size: .68rem; color: var(--ink-3); white-space: nowrap; }
+
+/* bloco largo (meta): valor à esquerda, nota à direita, aproveitando a largura */
+.pp-bloco--largo .pp-bloco-linha {
+  display: flex; align-items: baseline; justify-content: space-between; gap: .8rem;
+}
+.pp-bloco--largo .pp-bloco-valor { font-size: clamp(1.05rem, 4.6vw, 1.32rem); }
+.pp-bloco--largo .pp-bloco-nota { text-align: right; }
+
+/* DESKTOP: espaço sobra, os três cabem lado a lado */
+@media (min-width: 620px) {
+  .pp-blocos { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .pp-bloco--largo { grid-column: auto; }
+  .pp-bloco--largo .pp-bloco-linha { flex-direction: column; align-items: flex-start; gap: .1rem; }
+  .pp-bloco--largo .pp-bloco-nota { text-align: left; }
+  .pp-bloco--largo .pp-bloco-valor { font-size: 1.08rem; }
+}
 
 /* o bloco da meta carrega o semáforo — é o número que exige ação */
 .pp-bloco--meta { background: var(--accent-tint); }
@@ -562,9 +589,9 @@ main { max-width: 900px; margin: 0 auto; padding: 1.15rem clamp(.9rem, 4vw, 2rem
 .resultado-filtro em { font-style: normal; color: var(--accent); font-weight: 650; }
 .resultado-filtro .num { font-weight: 750; color: var(--ink-2); }
 
-@media (max-width: 400px) {
-  .pp-blocos { grid-template-columns: 1fr 1fr; }
-  .pp-bloco--meta, .pp-blocos > .pp-bloco:last-child { grid-column: 1 / -1; }
+/* telas muito estreitas: uma coluna só, cada número com a largura inteira */
+@media (max-width: 340px) {
+  .pp-blocos { grid-template-columns: 1fr; }
 }
 
 /* ============ GRUPO DE SEMANA ============ */
