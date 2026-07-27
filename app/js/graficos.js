@@ -53,9 +53,16 @@
     var barras = semanas.map(function (s) {
       var alturaTotal = (s.total / maior) * 100;
       var fracaoPaga = s.total > 0 ? (s.pago / s.total) : 0;
-      var classe = 'barra' + (s.ehSemanaAtual ? ' barra--atual' : '') + (s.total === 0 ? ' barra--zero' : '');
+      var classe = 'barra' + (s.ehSemanaAtual ? ' barra--atual' : '') +
+                   (s.total === 0 ? ' barra--zero' : '') +
+                   (s.deixouResto ? ' barra--resto' : '');
       var titulo = 'Semana ' + s.numero + ': ' + Formatar.dinheiro(s.total) +
-                   (s.pago > 0 ? ' · ' + Formatar.dinheiro(s.pago) + ' já pago' : '');
+                   (s.pago > 0 ? ' · ' + Formatar.dinheiro(s.pago) + ' já pago' : '') +
+                   (s.deixouResto ? ' · deixou ' + Formatar.dinheiro(s.resto) + ' pendente' : '');
+
+      // marcador: ▲ semana atual, ⚠ semana que passou deixando resto
+      var marca = s.ehSemanaAtual ? '<span class="barra-marca barra-marca--atual">▲</span>'
+                : (s.deixouResto ? '<span class="barra-marca barra-marca--resto">!</span>' : '');
 
       return (
         '<div class="' + classe + '" title="' + esc(titulo) + '">' +
@@ -66,6 +73,7 @@
             '</div>' +
           '</div>' +
           '<div class="barra-rotulo">S' + s.numero + '</div>' +
+          '<div class="barra-marca-linha">' + marca + '</div>' +
         '</div>'
       );
     }).join('');

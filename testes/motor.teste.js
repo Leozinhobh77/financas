@@ -364,6 +364,18 @@ teste('proximosVencimentos: atrasadas primeiro, ordenado por urgência', functio
   assert.strictEqual(prox[2].dias, 2);
 });
 
+teste('proximosVencimentos: com desdeISO, corta pendência de meses anteriores', function () {
+  var lista = [
+    contaFixa('pagar', 'Junho', 'outros', 500, '2026-06-10', 'pendente'),
+    contaFixa('pagar', 'Julho', 'outros', 300, '2026-07-15', 'pendente')
+  ];
+  var semCorte = Analise.proximosVencimentos(lista, '2026-07-26', 10, 'pagar');
+  assert.strictEqual(semCorte.length, 2);
+  var comCorte = Analise.proximosVencimentos(lista, '2026-07-26', 10, 'pagar', '2026-07-01');
+  assert.strictEqual(comCorte.length, 1);
+  assert.strictEqual(comCorte[0].conta.descricao, 'Julho');
+});
+
 teste('proximosVencimentos: nunca inclui conta já paga', function () {
   var prox = Analise.proximosVencimentos(CENARIO, '2026-07-01', 10, 'pagar');
   var pagas = prox.filter(function (p) { return p.conta.status === 'pago'; });
@@ -391,6 +403,214 @@ teste('Categorias: conhecidas têm cor e ícone próprios', function () {
   assert.strictEqual(Categorias.icone('cartão'), 'cartao');
   assert.strictEqual(Categorias.icone('casa'), 'casa');
   assert.strictEqual(Categorias.icone('inexistente-xyz'), 'tag');
+});
+
+// ============================================================
+secao('RN006 — Meta por dia (mês)');
+// ============================================================
+
+teste('RN006-1: exemplo do usuário — deve 6.000 no começo do mês (30 dias) = 200/dia', function () {
+  // junho/2026 tem 30 dias; hoje = 01/06 -> restam 30 dias (hoje conta)
+  var lista = [contaFixa('pagar', 'Dívida', 'outros', 6000, '2026-06-30', 'pendente')];
+  var m = Analise.metaPorDia(lista, 2026, 6, '2026-06-01');
+  assert.strictEqual(m.dias, 30);
+  assert.strictEqual(Math.round(m.meta), 200);
+});
+
+teste('RN006-2: exemplo do usuário — mesmos 6.000 faltando 20 dias = 300/dia', function () {
+  var lista = [contaFixa('pagar', 'Dívida', 'outros', 6000, '2026-06-30', 'pendente')];
+  var m = Analise.metaPorDia(lista, 2026, 6, '2026-06-11'); // 11..30 = 20 dias
+  assert.strictEqual(m.dias, 20);
+  assert.strictEqual(Math.round(m.meta), 300);
+});
+
+teste('RN006-3: exemplo do usuário — mesmos 6.000 faltando 10 dias = 600/dia', function () {
+  var lista = [contaFixa('pagar', 'Dívida', 'outros', 6000, '2026-06-30', 'pendente')];
+  var m = Analise.metaPorDia(lista, 2026, 6, '2026-06-21'); // 21..30 = 10 dias
+  assert.strictEqual(m.dias, 10);
+  assert.strictEqual(Math.round(m.meta), 600);
+});
+
+teste('RN006-4: pagar parte derruba a meta na hora', function () {
+  var lista = [
+    contaFixa('pagar', 'A', 'outros', 4000, '2026-06-30', 'pago'),
+    contaFixa('pagar', 'B', 'outros', 2000, '2026-06-30', 'pendente')
+  ];
+  var m = Analise.metaPorDia(lista, 2026, 6, '2026-06-21');
+  assert.strictEqual(m.falta, 2000);
+  assert.strictEqual(Math.round(m.meta), 200);  // 2000/10
+});
+
+teste('RN006-5: último dia do mês não divide por zero (piso 1)', function () {
+  var lista = [contaFixa('pagar', 'A', 'outros', 500, '2026-06-30', 'pendente')];
+  var m = Analise.metaPorDia(lista, 2026, 6, '2026-06-30');
+  assert.strictEqual(m.dias, 1);
+  assert.strictEqual(m.meta, 500);
+  assert.ok(isFinite(m.meta), 'meta deve ser finita');
+});
+
+teste('RN006-6: tudo pago -> meta zero, semáforo ok', function () {
+  var lista = [contaFixa('pagar', 'A', 'outros', 500, '2026-06-10', 'pago')];
+  var m = Analise.metaPorDia(lista, 2026, 6, '2026-06-21');
+  assert.strictEqual(m.meta, 0);
+  assert.strictEqual(m.semaforo, 'ok');
+});
+
+teste('RN006-7: mês sem conta nenhuma não gera NaN', function () {
+  var m = Analise.metaPorDia([], 2026, 6, '2026-06-15');
+  assert.strictEqual(m.meta, 0);
+  assert.ok(!isNaN(m.meta) && !isNaN(m.ideal));
+});
+
+teste('RN006-8: semáforo sobe conforme a pressão aumenta', function () {
+  var lista = [contaFixa('pagar', 'A', 'outros', 3000, '2026-06-30', 'pendente')];
+  // ideal = 3000/30 = 100/dia
+  assert.strictEqual(Analise.metaPorDia(lista, 2026, 6, '2026-06-01').semaforo, 'ok');       // 100/dia
+  assert.strictEqual(Analise.metaPorDia(lista, 2026, 6, '2026-06-08').semaforo, 'atencao');  // ~130/dia
+  assert.strictEqual(Analise.metaPorDia(lista, 2026, 6, '2026-06-21').semaforo, 'critico');  // 300/dia
+});
+
+// ============================================================
+secao('RN007 — Ritmo da semana com arrasto em cascata');
+// ============================================================
+
+// Julho/2026: dia 1 é quarta. S1=01-05, S2=06-12, S3=13-19, S4=20-26, S5=27-31
+function cenarioCascata() {
+  return [
+    contaFixa('pagar', 'S1', 'outros', 2100, '2026-07-03', 'pendente'),
+    contaFixa('pagar', 'S2', 'outros', 1500, '2026-07-08', 'pendente'),
+    contaFixa('pagar', 'S3', 'outros', 800, '2026-07-15', 'pendente'),
+    contaFixa('pagar', 'S4', 'outros', 1200, '2026-07-22', 'pendente'),
+    contaFixa('pagar', 'S5', 'outros', 900, '2026-07-29', 'pendente')
+  ];
+}
+
+teste('RN007-1: exemplo do usuário — S1 devendo 2.100, 7 dias = 300/dia', function () {
+  var r = Analise.ritmoDaSemana(cenarioCascata(), '2026-07-01');
+  assert.strictEqual(r.semana.numero, 1);
+  assert.strictEqual(r.venceNestaSemana, 2100);
+  assert.strictEqual(r.arrastado, 0);
+  assert.strictEqual(r.aCobrir, 2100);
+  assert.strictEqual(r.dias, 5);              // 01..05 (S1 tem 5 dias em julho/2026)
+  assert.strictEqual(Math.round(r.ritmo), 420);
+});
+
+teste('RN007-2: exemplo do usuário — S1 não paga arrasta pra S2 (2.100 + 2.100 = 4.200)', function () {
+  var lista = [
+    contaFixa('pagar', 'S1', 'outros', 2100, '2026-07-03', 'pendente'),
+    contaFixa('pagar', 'S2', 'outros', 2100, '2026-07-08', 'pendente')
+  ];
+  var r = Analise.ritmoDaSemana(lista, '2026-07-06'); // segunda da S2, 7 dias restantes
+  assert.strictEqual(r.semana.numero, 2);
+  assert.strictEqual(r.venceNestaSemana, 2100);
+  assert.strictEqual(r.arrastado, 2100);
+  assert.strictEqual(r.aCobrir, 4200);
+  assert.strictEqual(r.dias, 7);
+  assert.strictEqual(Math.round(r.ritmo), 600);  // exatamente o número do usuário
+});
+
+teste('RN007-3: cascata completa S1->S5, cada semana acumula tudo que veio antes', function () {
+  var lista = cenarioCascata();
+  // início de cada semana (segunda, ou dia 1 na S1)
+  var esperado = [
+    { hoje: '2026-07-01', semana: 1, aCobrir: 2100, arrastado: 0 },
+    { hoje: '2026-07-06', semana: 2, aCobrir: 3600, arrastado: 2100 },
+    { hoje: '2026-07-13', semana: 3, aCobrir: 4400, arrastado: 3600 },
+    { hoje: '2026-07-20', semana: 4, aCobrir: 5600, arrastado: 4400 },
+    { hoje: '2026-07-27', semana: 5, aCobrir: 6500, arrastado: 5600 }
+  ];
+  esperado.forEach(function (e) {
+    var r = Analise.ritmoDaSemana(lista, e.hoje);
+    assert.strictEqual(r.semana.numero, e.semana, 'semana em ' + e.hoje);
+    assert.strictEqual(r.aCobrir, e.aCobrir, 'a cobrir em ' + e.hoje);
+    assert.strictEqual(r.arrastado, e.arrastado, 'arrastado em ' + e.hoje);
+  });
+});
+
+teste('RN007-4: o que vence em semana FUTURA nunca entra no ritmo da semana atual', function () {
+  var r = Analise.ritmoDaSemana(cenarioCascata(), '2026-07-13'); // S3
+  // S3 cobre S1+S2+S3 = 2100+1500+800 = 4400; S4 (1200) e S5 (900) ficam de fora
+  assert.strictEqual(r.aCobrir, 4400);
+});
+
+teste('RN007-5: pagar o arrastado zera a cascata', function () {
+  var lista = [
+    contaFixa('pagar', 'S1', 'outros', 2100, '2026-07-03', 'pago'),
+    contaFixa('pagar', 'S2', 'outros', 2100, '2026-07-08', 'pendente')
+  ];
+  var r = Analise.ritmoDaSemana(lista, '2026-07-06');
+  assert.strictEqual(r.arrastado, 0);
+  assert.strictEqual(r.aCobrir, 2100);
+  assert.strictEqual(Math.round(r.ritmo), 300);
+});
+
+teste('RN007-6: no meio da semana divide pelos dias que faltam, não por 7', function () {
+  var lista = [contaFixa('pagar', 'X', 'outros', 1000, '2026-07-10', 'pendente')];
+  var r = Analise.ritmoDaSemana(lista, '2026-07-10'); // sexta; S2 = 06-12 -> restam 10,11,12
+  assert.strictEqual(r.dias, 3);
+  assert.ok(Math.abs(r.ritmo - 1000 / 3) < 0.01);
+});
+
+teste('RN007-7: último dia da semana não divide por zero', function () {
+  var lista = [contaFixa('pagar', 'X', 'outros', 700, '2026-07-08', 'pendente')];
+  var r = Analise.ritmoDaSemana(lista, '2026-07-12'); // domingo, fim da S2
+  assert.strictEqual(r.dias, 1);
+  assert.strictEqual(r.ritmo, 700);
+});
+
+teste('RN007-8: conta de OUTRO mês nunca entra no ritmo da semana', function () {
+  var lista = [
+    contaFixa('pagar', 'Junho', 'outros', 5000, '2026-06-10', 'pendente'),
+    contaFixa('pagar', 'Julho', 'outros', 1000, '2026-07-08', 'pendente')
+  ];
+  var r = Analise.ritmoDaSemana(lista, '2026-07-06');
+  assert.strictEqual(r.aCobrir, 1000, 'pendência de junho não pode entrar');
+});
+
+// ============================================================
+secao('Veio de antes — pendências de meses anteriores, separadas');
+// ============================================================
+
+teste('pendenteDeMesesAnteriores: soma só o que venceu antes do mês de referência', function () {
+  var lista = [
+    contaFixa('pagar', 'Água', 'casa', 118.40, '2026-06-10', 'pendente'),
+    contaFixa('pagar', 'Cartão', 'cartão', 1081.60, '2026-06-15', 'pendente'),
+    contaFixa('pagar', 'Antiga paga', 'outros', 999, '2026-05-10', 'pago'),
+    contaFixa('pagar', 'Deste mês', 'outros', 500, '2026-07-10', 'pendente')
+  ];
+  var v = Analise.pendenteDeMesesAnteriores(lista, 2026, 7);
+  assert.strictEqual(v.qtd, 2);
+  assert.ok(Math.abs(v.total - 1200) < 0.001);
+  assert.strictEqual(v.meses.length, 1);
+  assert.strictEqual(v.meses[0].mes, 6);
+});
+
+teste('pendenteDeMesesAnteriores: sem pendência antiga devolve zero (bloco não aparece)', function () {
+  var lista = [contaFixa('pagar', 'Deste mês', 'outros', 500, '2026-07-10', 'pendente')];
+  var v = Analise.pendenteDeMesesAnteriores(lista, 2026, 7);
+  assert.strictEqual(v.qtd, 0);
+  assert.strictEqual(v.total, 0);
+});
+
+teste('"Veio de antes" NÃO entra na meta do mês (decisão do usuário: não misturar)', function () {
+  var lista = [
+    contaFixa('pagar', 'Junho', 'outros', 5000, '2026-06-10', 'pendente'),
+    contaFixa('pagar', 'Julho', 'outros', 3000, '2026-07-30', 'pendente')
+  ];
+  var m = Analise.metaPorDia(lista, 2026, 7, '2026-07-21');
+  assert.strictEqual(m.falta, 3000, 'a meta do mês só considera contas do próprio mês');
+});
+
+teste('semanasComResto: marca só as semanas já passadas que ficaram com pendência', function () {
+  var lista = [
+    contaFixa('pagar', 'S1', 'outros', 100, '2026-07-03', 'pendente'),  // passou, pendente
+    contaFixa('pagar', 'S2', 'outros', 100, '2026-07-08', 'pago'),      // passou, paga
+    contaFixa('pagar', 'S4', 'outros', 100, '2026-07-22', 'pendente')   // futura
+  ];
+  var s = Analise.semanasComResto(lista, 2026, 7, '2026-07-20');
+  assert.strictEqual(s[0].deixouResto, true, 'S1 passou com pendência');
+  assert.strictEqual(s[1].deixouResto, false, 'S2 passou mas foi paga');
+  assert.strictEqual(s[3].deixouResto, false, 'S4 ainda não passou');
 });
 
 // ============================================================

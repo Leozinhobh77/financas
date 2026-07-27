@@ -76,9 +76,13 @@
 
     var resumo = Analise.resumoDoMes(todas, p.ano, p.mes, hoje);
     var comparativo = Analise.comparativoMesAnterior(todas, p.ano, p.mes, hoje);
-    var semanas = Analise.porSemana(todas, p.ano, p.mes, 'pagar', hoje);
+    var semanas = Analise.semanasComResto(todas, p.ano, p.mes, hoje);
     var categorias = Analise.porCategoria(todas, resumo.inicio, resumo.fim, 'pagar');
-    var proximos = Analise.proximosVencimentos(todas, hoje, 5, 'pagar');
+    // corta o que veio de meses anteriores: essas têm bloco próprio ("Veio de antes")
+    var proximos = Analise.proximosVencimentos(todas, hoje, 5, 'pagar', resumo.inicio);
+    var meta = Analise.metaPorDia(todas, p.ano, p.mes, hoje);
+    var ritmo = Analise.ritmoDaSemana(todas, hoje);
+    var veioDeAntes = Analise.pendenteDeMesesAnteriores(todas, p.ano, p.mes);
 
     // semana atual
     var semAtual = Datas.semanaDe(hoje);
@@ -106,7 +110,9 @@
           '<p class="tela-sub">' + Formatar.capitalizar(Formatar.dataComDiaSemana(hoje)) + '</p>' +
         '</div></div>' +
 
-        Render.heroi(resumo, comparativo, nomeMes) +
+        Render.heroi(resumo, comparativo, nomeMes, meta) +
+
+        Render.blocoVeioDeAntes(veioDeAntes) +
 
         '<div class="mini-grade">' +
           alerta +
@@ -122,6 +128,7 @@
           '<div class="secao-cabeca"><span class="secao-titulo">Por semana · ' + nomeMes + '</span>' +
             '<span class="grupo-valor">' + Formatar.dinheiro(resumo.totalPagar) + '</span></div>' +
           '<div class="painel">' + Graficos.barrasSemana(semanas) + '</div>' +
+          Render.cardRitmoSemana(ritmo) +
         '</section>' +
 
         '<section class="secao">' +

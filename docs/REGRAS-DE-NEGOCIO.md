@@ -13,7 +13,10 @@
 | RN002 — Parcelamento gera a série inteira de uma vez | `testes/motor.teste.js` |
 | RN003 — Semana seg-dom, numerada dentro do mês | `testes/motor.teste.js` |
 | RN004 — Conta atrasada = pendente com vencimento no passado | `testes/motor.teste.js` |
-| RN005 — Exclusão de parcela vs. série | `testes/e2e/contas.spec.js` |
+| RN005 — Exclusão de parcela vs. série | `testes/e2e/test_app_financas.py` |
+| RN006 — Meta por dia (mês) | `testes/motor.teste.js` · casos `RN006-*` |
+| RN007 — Ritmo da semana com arrasto em cascata | `testes/motor.teste.js` · casos `RN007-*` |
+| RN008 — "Veio de antes" separado do mês corrente | `testes/motor.teste.js` · `pendenteDeMesesAnteriores` |
 
 Meta: 100%. `/harness doctor` reprova regra sem teste em projeto T2+.
 
@@ -132,7 +135,96 @@ série pra oferecer.
 apagaria um lançamento avulso, é o tipo de erro que o usuário só percebe quando confere o
 extrato — tarde demais.
 
-**Teste:** `testes/e2e/contas.spec.js` · cenário "excluir parcela pergunta o escopo"
+**Teste:** `testes/e2e/test_app_financas.py` · cenário "excluir parcela: deve perguntar o escopo"
 
 **Procedência:** aplicação da regra de ouro nº 1 do harness (nunca agir sem confirmar quando a
 ação é difícil de reverter), combinada com RN002.
+
+---
+
+### RN006 — Meta por dia: quanto preciso juntar por dia até o fim do mês
+**Regra:** `meta = o que ainda falta pagar no mês ÷ dias que restam até o último dia do mês`.
+O **dia de hoje conta** como dia restante (ele ainda não acabou). O divisor tem **piso 1** —
+nunca zero. A meta **sobe sozinha** conforme os dias passam sem pagamento, e **cai na hora**
+quando qualquer conta é paga.
+
+**Por quê:** o usuário tem renda diária/variável ("trabalho todo dia, arrumo dinheiro todo
+dia"). O total devido no mês não responde a pergunta que ele realmente faz — quanto preciso
+gerar por dia. E o número precisa refletir a pressão crescente do atraso, senão não serve
+como alerta.
+
+**Não inclui:**
+- Contas a **receber** (decisão explícita: o número é o bruto que ele precisa *gerar*; se
+  descontasse, ficaria otimista e sumiria quando o salário entrasse).
+- Pendências de **meses anteriores** (têm bloco próprio; ver "Veio de antes" abaixo).
+
+**Exemplos (dados pelo usuário):**
+- Deve R$ 6.000, mês de 30 dias, hoje é dia 1 → 6000 ÷ 30 = **R$ 200/dia**
+- Mesmos R$ 6.000, faltam 20 dias → 6000 ÷ 20 = **R$ 300/dia**
+- Mesmos R$ 6.000, faltam 10 dias → 6000 ÷ 10 = **R$ 600/dia**
+- Pagou R$ 4.000 dos 6.000, faltam 10 dias → 2000 ÷ 10 = **R$ 200/dia**
+- Último dia do mês → divisor 1, sem divisão por zero
+- Mês sem conta nenhuma → meta 0, sem `NaN`
+
+**Semáforo:** compara a meta atual com o ritmo "ideal" (`total do mês ÷ dias do mês`).
+🟢 até 1,05× · 🟡 até 1,5× · 🔴 acima disso.
+
+**Teste:** `testes/motor.teste.js` · casos `RN006-*`
+**Procedência:** pedido do usuário, com os três exemplos numéricos acima ditados por ele.
+
+---
+
+### RN007 — Ritmo da semana: o arrasto acumula em cascata
+**Regra:** a semana atual precisa cobrir **tudo que está pendente no mês corrente e vence até
+o domingo dela** — o que venceu em semanas anteriores e não foi pago (o "arrastado") mais o
+que vence nela. Divide-se pelos **dias que restam** até o domingo (hoje conta, piso 1).
+
+O que vence em **semanas futuras fica de fora** — senão o número viraria o mês inteiro e
+perderia o sentido de "esta semana".
+
+**Por quê:** é uma regra única que produz a cascata naturalmente (S1 → S2 → S3 → …), sem
+precisar somar semana a semana nem guardar estado. Pagar qualquer coisa desmonta a bola de
+neve imediatamente.
+
+**Exemplos (dados pelo usuário):**
+- S1 devendo R$ 2.100, semana cheia → 2100 ÷ 7 = **R$ 300/dia**
+- S1 não paga (R$ 2.100) + S2 vencendo R$ 2.100 → a cobrir R$ 4.200 ÷ 7 = **R$ 600/dia**
+- Cascata completa, sem pagar nada, num mês de 5 semanas:
+
+  | Semana | Vence nela | Arrastado | A cobrir |
+  |---|---|---|---|
+  | S1 | 2.100 | — | 2.100 |
+  | S2 | 1.500 | 2.100 | 3.600 |
+  | S3 | 800 | 3.600 | 4.400 |
+  | S4 | 1.200 | 4.400 | 5.600 |
+  | S5 | 900 | 5.600 | 6.500 |
+
+- Pagar o arrastado zera a cascata na hora
+- No meio da semana divide pelos dias que faltam, não por 7 fixo
+- Conta de **outro mês** nunca entra (tem bloco próprio)
+
+**Teste:** `testes/motor.teste.js` · casos `RN007-*`
+**Procedência:** pedido do usuário, incluindo a dúvida que ele levantou sobre o acúmulo
+continuar de S2 para S3, S4 e S5 — respondida com a regra única acima.
+
+---
+
+### RN008 — "Veio de antes": pendência de meses anteriores fica separada
+**Regra:** contas a pagar pendentes com vencimento **anterior ao primeiro dia do mês corrente**
+aparecem num bloco próprio no dashboard, com o total e a lista. Elas **não entram** na Meta por
+dia (RN006), **não entram** no Ritmo da semana (RN007), e **não aparecem** em "Próximos
+vencimentos" — que passa a mostrar só o mês corrente.
+
+**Por quê:** pedido explícito do usuário ("não misturar com desse mês"). Misturar faria a meta
+do mês responder uma pergunta diferente da que ela promete, e ver a mesma conta em dois lugares
+empurraria as contas do mês corrente para baixo na lista de urgências.
+
+**Exemplos:**
+- 2 contas de junho pendentes, hoje é julho → bloco mostra o total e as duas; a meta de julho
+  ignora as duas
+- Nenhuma pendência antiga → **o bloco não aparece** (não é um card vazio)
+- Conta antiga já paga → não conta
+
+**Teste:** `testes/motor.teste.js` · `pendenteDeMesesAnteriores` e
+`"Veio de antes" NÃO entra na meta do mês`
+**Procedência:** pedido explícito do usuário, na revisão do esboço.

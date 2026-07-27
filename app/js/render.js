@@ -144,8 +144,8 @@
     }).join('') + '</div>';
   }
 
-  /** Card-herói do dashboard: o número que responde "quanto ainda devo este mês". */
-  function heroi(resumo, comparativo, nomeMes) {
+  /** Card-herói do dashboard: o número que responde "quanto ainda devo este mês" + meta diária. */
+  function heroi(resumo, comparativo, nomeMes, meta) {
     // Estado vazio: sem conta nenhuma no mês, um "R$ 0,00" gigante não informa nada — vira
     // um convite pra começar. É a primeira tela que o usuário vê no primeiro uso.
     if (resumo.qtdPagar === 0 && resumo.totalReceber === 0) {
@@ -184,6 +184,105 @@
         (resumo.totalPagar > 0 ? Graficos.barraProgresso(resumo.progresso) : '') +
         (resumo.totalPagar > 0 ? '<div class="heroi-rodape"><span>' + pctPago + '% pago</span>' +
           '<span>' + Formatar.dinheiro(resumo.totalPago) + ' de ' + Formatar.dinheiro(resumo.totalPagar) + '</span></div>' : '') +
+        (meta ? faixaMeta(meta, nomeMes) : '') +
+      '</section>'
+    );
+  }
+
+  /** Faixa "Meta por dia" dentro do card-herói. */
+  function faixaMeta(meta, nomeMes) {
+    if (meta.falta <= 0) {
+      return (
+        '<div class="heroi-meta heroi-meta--ok">' +
+          '<span class="heroi-meta-rotulo">' + Icones.get('check') + 'Mês fechado</span>' +
+          '<span class="heroi-meta-valor">tudo pago</span>' +
+        '</div>'
+      );
+    }
+    return (
+      '<div class="heroi-meta sem-' + meta.semaforo + '">' +
+        '<span class="heroi-meta-rotulo">' + Icones.get('raio') + 'Meta por dia</span>' +
+        '<span class="heroi-meta-bloco">' +
+          '<span class="heroi-meta-valor">' + Formatar.dinheiro(meta.meta) + '</span>' +
+          '<span class="heroi-meta-sub">' + meta.dias + (meta.dias === 1 ? ' dia restante' : ' dias restantes') + '</span>' +
+        '</span>' +
+      '</div>'
+    );
+  }
+
+  /** Card "Ritmo desta semana", com o detalhamento que explica de onde vem o número. */
+  function cardRitmoSemana(r) {
+    if (r.aCobrir <= 0) {
+      return (
+        '<div class="ritmo ritmo--ok">' +
+          '<div class="ritmo-cabeca">' +
+            '<span class="ritmo-rotulo">' + Icones.get('check') + 'Ritmo desta semana</span>' +
+          '</div>' +
+          '<div class="ritmo-valor">Semana em dia</div>' +
+          '<p class="ritmo-sub">Nada pendente até domingo.</p>' +
+        '</div>'
+      );
+    }
+
+    var linhaArrastado = r.arrastado > 0
+      ? '<div class="ritmo-linha ritmo-linha--alerta">' +
+          '<span>arrastado de antes' + (r.qtdArrastadas ? ' (' + r.qtdArrastadas + ')' : '') + '</span>' +
+          '<span class="num">' + Formatar.dinheiro(r.arrastado) + '</span>' +
+        '</div>'
+      : '';
+
+    return (
+      '<div class="ritmo sem-' + r.semaforo + '">' +
+        '<div class="ritmo-cabeca">' +
+          '<span class="ritmo-rotulo">' + Icones.get('raio') + 'Ritmo desta semana</span>' +
+          '<span class="ritmo-selo">semana ' + r.semana.numero + '</span>' +
+        '</div>' +
+        '<div class="ritmo-valor">' + Formatar.dinheiro(r.ritmo) + ' <small>/ dia</small></div>' +
+        '<p class="ritmo-sub">para zerar até ' + Formatar.dataCurta(r.semana.fim) +
+          ' · ' + r.dias + (r.dias === 1 ? ' dia' : ' dias') + '</p>' +
+        '<div class="ritmo-detalhe">' +
+          '<div class="ritmo-linha"><span>vence nesta semana</span>' +
+            '<span class="num">' + Formatar.dinheiro(r.venceNestaSemana) + '</span></div>' +
+          linhaArrastado +
+          '<div class="ritmo-linha ritmo-linha--total"><span>a cobrir</span>' +
+            '<span class="num">' + Formatar.dinheiro(r.aCobrir) + '</span></div>' +
+        '</div>' +
+      '</div>'
+    );
+  }
+
+  /** Bloco "Veio de antes" — pendência de meses anteriores, separada do mês atual. */
+  function blocoVeioDeAntes(v) {
+    if (v.qtd === 0) return '';
+
+    var meses = v.meses.map(function (m) {
+      return Formatar.capitalizar(Datas.nomeMes(m.mes));
+    }).join(', ');
+
+    var linhas = v.contas.slice(0, 4).map(function (c) {
+      return (
+        '<button class="antes-linha" data-acao="editar" data-id="' + c.id + '">' +
+          '<span class="antes-desc">' + esc(c.descricao) + '</span>' +
+          '<span class="antes-data">' + Formatar.dataCurta(c.vencimento) + '</span>' +
+          '<span class="antes-valor num">' + Formatar.dinheiro(c.valor) + '</span>' +
+        '</button>'
+      );
+    }).join('');
+
+    var resto = v.qtd > 4
+      ? '<p class="antes-resto">+ ' + (v.qtd - 4) + ' conta(s)</p>'
+      : '';
+
+    return (
+      '<section class="antes">' +
+        '<div class="antes-cabeca">' +
+          '<span class="antes-rotulo">' + Icones.get('alerta') + 'Veio de antes</span>' +
+          '<span class="antes-total num">' + Formatar.dinheiro(v.total) + '</span>' +
+        '</div>' +
+        '<p class="antes-sub">' + v.qtd + (v.qtd === 1 ? ' conta de ' : ' contas de ') + esc(meses) +
+          ' que ainda não foi' + (v.qtd === 1 ? '' : 'ram') + ' paga' + (v.qtd === 1 ? '' : 's') +
+          '. Não entra na meta deste mês.</p>' +
+        '<div class="antes-lista">' + linhas + resto + '</div>' +
       '</section>'
     );
   }
@@ -216,6 +315,9 @@
     listaPorSemana: listaPorSemana,
     proximosVencimentos: proximosVencimentos,
     heroi: heroi,
+    faixaMeta: faixaMeta,
+    cardRitmoSemana: cardRitmoSemana,
+    blocoVeioDeAntes: blocoVeioDeAntes,
     miniCard: miniCard,
     catPill: catPill
   };

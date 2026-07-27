@@ -270,6 +270,15 @@ with sync_playwright() as p:
     checar("por semana" in dash_txt, "DASH: seção 'por semana' ausente")
     checar("onde vai o dinheiro" in dash_txt, "DASH: seção de categorias ausente")
 
+    # --- META POR DIA (RN006) + RITMO DA SEMANA (RN007) ---
+    checar(page.locator(".heroi-meta").count() > 0, "META: faixa 'Meta por dia' não aparece no herói")
+    checar("meta por dia" in dash_txt or "mês fechado" in dash_txt,
+           "META: rótulo 'Meta por dia' ausente")
+    checar(page.locator(".ritmo").count() > 0, "RITMO: card 'Ritmo desta semana' não aparece")
+    checar("ritmo desta semana" in dash_txt, "RITMO: rótulo ausente")
+    checar("a cobrir" in dash_txt or "semana em dia" in dash_txt,
+           "RITMO: detalhamento ('a cobrir') ausente")
+
     page.screenshot(path=str(CAPTURAS / "6-dashboard-novo.png"), full_page=True)
 
     # clicar num próximo vencimento abre a edição daquela conta

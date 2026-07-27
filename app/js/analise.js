@@ -132,10 +132,20 @@
   /**
    * Proximos vencimentos: contas pendentes ordenadas por vencimento, das mais urgentes pra
    * frente. Inclui as atrasadas primeiro (dias negativo), que sao as que precisam de acao.
+   *
+   * `desdeISO` (opcional) corta o que venceu antes daquela data — usado no dashboard pra
+   * excluir pendencia de meses anteriores, que ja tem bloco proprio ("Veio de antes"). Sem
+   * isso as contas antigas apareceriam nos dois lugares e empurrariam as do mes pra baixo,
+   * voltando a misturar o que o usuario pediu pra separar.
    */
-  function proximosVencimentos(lista, hojeISO, limite, tipo) {
+  function proximosVencimentos(lista, hojeISO, limite, tipo, desdeISO) {
     return lista
-      .filter(function (c) { return c.status === 'pendente' && (!tipo || c.tipo === tipo); })
+      .filter(function (c) {
+        if (c.status !== 'pendente') return false;
+        if (tipo && c.tipo !== tipo) return false;
+        if (desdeISO && Datas.compararISO(c.vencimento, desdeISO) < 0) return false;
+        return true;
+      })
       .map(function (c) {
         return { conta: c, dias: diasAte(c.vencimento, hojeISO) };
       })
@@ -152,7 +162,162 @@
     return 'atrasada há ' + Math.abs(dias) + ' dias';
   }
 
+  // ============================================================
+  // META POR DIA / RITMO — quanto preciso juntar por dia pra fechar
+  // ============================================================
+
+  /**
+   * Dias que ainda restam ate uma data-fim, contando HOJE (decisao do usuario: o dia ainda
+   * nao acabou, ainda da pra arrumar dinheiro hoje). Piso 1 — nunca zero, senao dividiria
+   * por zero no ultimo dia.
+   */
+  function diasRestantesAte(fimISO, hojeISO) {
+    var d = diasAte(fimISO, hojeISO) + 1;
+    return Math.max(1, d);
+  }
+
+  /**
+   * Ritmo "ideal": o que teria sido preciso por dia se o periodo tivesse comecado hoje com
+   * tudo em dia. Serve so de referencia pro semaforo — nao e mostrado como numero.
+   */
+  function semaforoDoRitmo(ritmoAtual, ritmoIdeal) {
+    if (ritmoAtual <= 0) return 'ok';
+    if (ritmoIdeal <= 0) return 'critico';
+    var razao = ritmoAtual / ritmoIdeal;
+    if (razao <= 1.05) return 'ok';
+    if (razao <= 1.5) return 'atencao';
+    return 'critico';
+  }
+
+  /**
+   * META POR DIA (mes): quanto precisa juntar por dia, de hoje ate o ultimo dia do mes, pra
+   * zerar o que falta. Sobe sozinho conforme os dias passam sem pagamento; cai ao pagar.
+   * NAO inclui pendencia de meses anteriores (decisao do usuario: fica em bloco separado).
+   */
+  function metaPorDia(lista, ano, mes, hojeISO) {
+    var r = resumoDoMes(lista, ano, mes, hojeISO);
+    var fimMes = r.fim;
+    var hojeP = Datas.parseISO(hojeISO);
+
+    // se hoje esta fora do mes analisado, o "restante" e o mes inteiro (visao de planejamento)
+    var dentroDoMes = (hojeP.ano === ano && hojeP.mes === mes);
+    var dias = dentroDoMes ? diasRestantesAte(fimMes, hojeISO) : Datas.diasDoMes(ano, mes);
+
+    var meta = r.totalFalta / dias;
+    var ideal = r.totalPagar / Datas.diasDoMes(ano, mes);
+
+    return {
+      falta: r.totalFalta,
+      total: r.totalPagar,
+      dias: dias,
+      meta: meta,
+      ideal: ideal,
+      semaforo: semaforoDoRitmo(meta, ideal),
+      dentroDoMes: dentroDoMes,
+      fim: fimMes
+    };
+  }
+
+  /**
+   * RITMO DESTA SEMANA. A semana atual cobre TUDO que esta pendente no mes e vence ate o
+   * domingo dela — isso produz a cascata (S1 -> S2 -> S3...) numa regra so, sem precisar
+   * somar semana a semana. O que vence em semanas FUTURAS fica de fora de proposito.
+   * Pendencia de meses anteriores tambem fica de fora (bloco separado).
+   */
+  function ritmoDaSemana(lista, hojeISO) {
+    var sem = Datas.semanaDe(hojeISO);
+    var p = Datas.parseISO(hojeISO);
+    var iv = intervaloDoMes(p.ano, p.mes);
+
+    var pendentesDoMes = lista.filter(function (c) {
+      return c.tipo === 'pagar' && c.status === 'pendente' &&
+             Datas.estaEntre(c.vencimento, iv.inicio, iv.fim);
+    });
+
+    var venceNestaSemana = pendentesDoMes.filter(function (c) {
+      return Datas.estaEntre(c.vencimento, sem.inicio, sem.fim);
+    });
+    // arrastado = pendente do mes que venceu ANTES do inicio desta semana
+    var arrastado = pendentesDoMes.filter(function (c) {
+      return Datas.compararISO(c.vencimento, sem.inicio) < 0;
+    });
+
+    var vVence = somar(venceNestaSemana);
+    var vArrastado = somar(arrastado);
+    var aCobrir = vVence + vArrastado;
+    var dias = diasRestantesAte(sem.fim, hojeISO);
+
+    // ideal: so o que vence nesta semana, diluido nos 7 dias dela
+    var diasDaSemana = diasAte(sem.fim, sem.inicio) + 1;
+    var ideal = vVence / Math.max(1, diasDaSemana);
+
+    var ritmo = aCobrir / dias;
+
+    return {
+      semana: sem,
+      venceNestaSemana: vVence,
+      arrastado: vArrastado,
+      aCobrir: aCobrir,
+      dias: dias,
+      ritmo: ritmo,
+      ideal: ideal,
+      semaforo: semaforoDoRitmo(ritmo, ideal),
+      qtdArrastadas: arrastado.length,
+      qtdVence: venceNestaSemana.length
+    };
+  }
+
+  /**
+   * Pendencias de MESES ANTERIORES ao mes de referencia. Bloco separado, informativo — nao
+   * entra na meta do mes nem no ritmo da semana (pedido explicito: "nao misturar").
+   */
+  function pendenteDeMesesAnteriores(lista, ano, mes) {
+    var inicioDoMes = Datas.formatarISO(ano, mes, 1);
+    var antigas = lista.filter(function (c) {
+      return c.tipo === 'pagar' && c.status === 'pendente' &&
+             Datas.compararISO(c.vencimento, inicioDoMes) < 0;
+    }).sort(function (a, b) { return Datas.compararISO(a.vencimento, b.vencimento); });
+
+    // agrupa por mes de vencimento, do mais recente pro mais antigo
+    var meses = {};
+    antigas.forEach(function (c) {
+      var p = Datas.parseISO(c.vencimento);
+      var chave = p.ano + '-' + p.mes;
+      if (!meses[chave]) meses[chave] = { ano: p.ano, mes: p.mes, valor: 0, qtd: 0 };
+      meses[chave].valor += c.valor;
+      meses[chave].qtd++;
+    });
+
+    return {
+      total: somar(antigas),
+      qtd: antigas.length,
+      contas: antigas,
+      meses: Object.keys(meses).map(function (k) { return meses[k]; })
+        .sort(function (a, b) { return (b.ano * 12 + b.mes) - (a.ano * 12 + a.mes); })
+    };
+  }
+
+  /** Quais semanas do mes deixaram resto pendente (para o marcador nas barras). */
+  function semanasComResto(lista, ano, mes, hojeISO) {
+    return porSemana(lista, ano, mes, 'pagar', hojeISO).map(function (s) {
+      var pendentes = lista.filter(function (c) {
+        return c.tipo === 'pagar' && c.status === 'pendente' &&
+               Datas.estaEntre(c.vencimento, s.inicio, s.fim);
+      });
+      var jaPassou = Datas.compararISO(s.fim, hojeISO) < 0;
+      s.resto = somar(pendentes);
+      s.deixouResto = jaPassou && s.resto > 0;
+      return s;
+    });
+  }
+
   var Analise = {
+    diasRestantesAte: diasRestantesAte,
+    metaPorDia: metaPorDia,
+    ritmoDaSemana: ritmoDaSemana,
+    pendenteDeMesesAnteriores: pendenteDeMesesAnteriores,
+    semanasComResto: semanasComResto,
+    semaforoDoRitmo: semaforoDoRitmo,
     resumoDoMes: resumoDoMes,
     comparativoMesAnterior: comparativoMesAnterior,
     porCategoria: porCategoria,
