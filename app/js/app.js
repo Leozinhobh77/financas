@@ -9,12 +9,15 @@
     { rota: 'dashboard', icone: 'dashboard', rotulo: 'Início' },
     { rota: 'pagar', icone: 'pagar', rotulo: 'Pagar' },
     { rota: 'receber', icone: 'receber', rotulo: 'Receber' },
+    { rota: 'metas', icone: 'alvo', rotulo: 'Metas' },
     { rota: 'config', icone: 'engrenagem', rotulo: 'Ajustes' }
   ];
 
   var estado = {
     rota: 'dashboard',
-    filtro: { periodo: { tipo: 'mes-atual' }, status: 'todos', categoria: 'todas', busca: '', ordem: 'vencimento' }
+    filtro: { periodo: { tipo: 'mes-atual' }, status: 'todos', categoria: 'todas', busca: '', ordem: 'vencimento' },
+    metaAberta: null,
+    mesAtivo: null   // null = ainda não escolhido; a tela abre sozinha no mês corrente
   };
 
   var elConteudo, elNavDesktop, elTabbar, elToast;
@@ -414,6 +417,370 @@
     });
   }
 
+  // ---------------------------------------------------------------- METAS
+  function resumoDaMeta(meta) {
+    return Metas.resumoDaCampanha(meta, Store.listarContas(), Datas.hoje(), Store.listarMetas());
+  }
+
+  function telaMetas() {
+    estado.metaAberta = null;
+    var contas = Store.listarContas();
+    var todas = Store.listarMetas();
+    var hoje = Datas.hoje();
+
+    var pares = todas.map(function (m) {
+      return { meta: m, resumo: Metas.resumoDaCampanha(m, contas, hoje, todas) };
+    }).sort(function (a, b) {
+      // as que estão correndo agora primeiro; depois as futuras; encerradas por último
+      function peso(p) { return p.resumo.encerrada ? 2 : (p.resumo.mesCorrente ? 0 : 1); }
+      return peso(a) - peso(b) || String(b.meta.criadoEm).localeCompare(String(a.meta.criadoEm));
+    });
+
+    elConteudo.innerHTML =
+      '<div class="tela">' +
+        '<div class="tela-cabeca">' +
+          '<div>' +
+            '<h1 class="tela-titulo">Metas</h1>' +
+            '<p class="tela-sub">Junte dinheiro, pague as contas, veja o que sobra.</p>' +
+          '</div>' +
+          '<button class="botao botao-principal botao-compacto" data-acao="nova-meta">' +
+            Icones.get('mais') + 'Nova meta</button>' +
+        '</div>' +
+        RenderMetas.listaDeMetas(pares) +
+      '</div>';
+  }
+
+  function telaMeta(id) {
+    var meta = Store.obterMeta(id);
+    if (!meta) { irPara('metas'); return; }
+
+    estado.metaAberta = id;
+    var r = resumoDaMeta(meta);
+
+    // O seletor abre sozinho no mês corrente — é onde a ação está. Só cai em "geral" quando a
+    // campanha não tem mês corrente (ainda não começou ou já acabou).
+    if (estado.mesAtivo === null) {
+      estado.mesAtivo = r.mesCorrente ? (r.mesCorrente.ano + '-' + r.mesCorrente.mes) : 'geral';
+    }
+
+    var corpo;
+    if (estado.mesAtivo === 'geral') {
+      corpo = RenderMetas.heroiCofre(r) + RenderMetas.escadaDoCofre(r) + RenderMetas.graficoCofre(r);
+    } else {
+      var mes = r.meses.filter(function (m) { return m.ano + '-' + m.mes === estado.mesAtivo; })[0];
+      if (!mes) { estado.mesAtivo = 'geral'; telaMeta(id); return; }
+      corpo = RenderMetas.painelDoMes(mes, meta) +
+        '<div class="meta-acoes">' +
+          '<button class="botao botao-principal" data-acao="novo-aporte" data-id="' + meta.id + '">' +
+            Icones.get('subir') + 'Adicionar dinheiro</button>' +
+          '<button class="botao botao-fantasma" data-acao="nova-retirada" data-id="' + meta.id + '">' +
+            Icones.get('descer') + 'Retirar</button>' +
+        '</div>';
+    }
+
+    elConteudo.innerHTML =
+      '<div class="tela">' +
+        '<div class="tela-cabeca tela-cabeca--meta">' +
+          '<button class="icon-btn icon-btn--voltar" data-acao="voltar-metas" aria-label="Voltar para as metas">' +
+            Icones.get('seta') + '</button>' +
+          '<div class="tc-meio">' +
+            '<h1 class="tela-titulo">' + Render.esc(meta.nome) + '</h1>' +
+            '<p class="tela-sub">' + Render.esc(RenderMetas.periodoDaCampanha(meta)) + '</p>' +
+          '</div>' +
+          '<button class="icon-btn" data-acao="editar-meta" data-id="' + meta.id + '" aria-label="Editar meta">' +
+            Icones.get('editar') + '</button>' +
+          '<button class="icon-btn" data-acao="excluir-meta" data-id="' + meta.id + '" aria-label="Excluir meta">' +
+            Icones.get('excluir') + '</button>' +
+        '</div>' +
+        RenderMetas.seletorMeses(r, estado.mesAtivo) +
+        corpo +
+      '</div>';
+  }
+
+  // ---- assistente de criação/edição da meta ----
+  var editandoMetaId = null;
+
+  function opcoesDeMesParaMeta() {
+    var p = Datas.parseISO(Datas.hoje());
+    var out = [];
+    for (var i = 0; i < 18; i++) {
+      var iso = Datas.somarMeses(Datas.formatarISO(p.ano, p.mes, 1), i);
+      var d = Datas.parseISO(iso);
+      out.push({ ano: d.ano, mes: d.mes });
+    }
+    return out;
+  }
+
+  function montarMesesDoAssistente(meta) {
+    var escolhidos = {};
+    (meta ? meta.meses : []).forEach(function (m) { escolhidos[m.ano + '-' + m.mes] = m.alvo; });
+
+    // Mês já passado que faça parte da meta não aparece na lista dos 18 seguintes — mas não
+    // pode sumir na edição, senão salvar apagaria o histórico dele.
+    var opcoes = opcoesDeMesParaMeta();
+    var chaves = {};
+    opcoes.forEach(function (o) { chaves[o.ano + '-' + o.mes] = true; });
+    (meta ? meta.meses : []).forEach(function (m) {
+      if (!chaves[m.ano + '-' + m.mes]) opcoes.push({ ano: m.ano, mes: m.mes });
+    });
+    opcoes.sort(function (a, b) { return Metas.chaveMes(a.ano, a.mes) - Metas.chaveMes(b.ano, b.mes); });
+
+    document.getElementById('mMeses').innerHTML = opcoes.map(function (o) {
+      var chave = o.ano + '-' + o.mes;
+      var marcado = Object.prototype.hasOwnProperty.call(escolhidos, chave);
+      return (
+        '<div class="mes-linha' + (marcado ? ' marcado' : '') + '" data-chave="' + chave + '">' +
+          '<label class="mes-check">' +
+            '<input type="checkbox" data-ano="' + o.ano + '" data-mes="' + o.mes + '"' + (marcado ? ' checked' : '') + '>' +
+            '<span>' + Formatar.capitalizar(Datas.nomeMes(o.mes)) + ' <em>' + o.ano + '</em></span>' +
+          '</label>' +
+          '<input type="number" class="mes-alvo" min="0" step="0.01" inputmode="decimal" placeholder="0,00"' +
+            ' value="' + (marcado ? escolhidos[chave] : '') + '"' + (marcado ? '' : ' disabled') + '>' +
+        '</div>'
+      );
+    }).join('');
+  }
+
+  function montarCategoriasDoAssistente(meta) {
+    var marcadas = meta ? (meta.selecao.categorias || []) : [];
+    document.getElementById('mCats').innerHTML = Store.listarCategorias().map(function (c) {
+      var on = marcadas.indexOf(c) !== -1;
+      return '<button type="button" class="chip chip--cat' + (on ? ' ativo' : '') + '" data-cat="' + Render.esc(c) + '">' +
+             Icones.get(Categorias.icone(c)) + Render.esc(Formatar.capitalizar(c)) + '</button>';
+    }).join('');
+  }
+
+  function lerMesesDoAssistente() {
+    var out = [];
+    Array.prototype.forEach.call(document.querySelectorAll('#mMeses .mes-linha'), function (linha) {
+      var chk = linha.querySelector('input[type=checkbox]');
+      if (!chk.checked) return;
+      out.push({
+        ano: Number(chk.getAttribute('data-ano')),
+        mes: Number(chk.getAttribute('data-mes')),
+        alvo: Number(linha.querySelector('.mes-alvo').value) || 0
+      });
+    });
+    return out;
+  }
+
+  function lerCategoriasDoAssistente() {
+    return Array.prototype.map.call(
+      document.querySelectorAll('#mCats .chip.ativo'),
+      function (b) { return b.getAttribute('data-cat'); }
+    );
+  }
+
+  function atualizarPreviaDaMeta() {
+    var meses = lerMesesDoAssistente();
+    var total = meses.reduce(function (s, m) { return s + m.alvo; }, 0);
+    var contas = Store.listarContas();
+    var cats = lerCategoriasDoAssistente();
+
+    // prévia das contas: mesma regra da meta real, só que sem meta gravada ainda
+    var fantasma = { id: '__previa__', criadoEm: '9999', selecao: { categorias: cats, incluidas: [], excluidas: [] }, movimentos: [] };
+    var totalContas = meses.reduce(function (s, m) {
+      return s + Metas.contasDaMeta(fantasma, contas, m.ano, m.mes)
+        .reduce(function (a, c) { return a + c.valor; }, 0);
+    }, 0);
+
+    var sobra = total - totalContas;
+    document.getElementById('mPrevia').innerHTML = meses.length === 0
+      ? '<p class="dica">Marque pelo menos um mês para ver a prévia.</p>'
+      : (
+        '<div class="prev-linha"><span>' + meses.length + (meses.length === 1 ? ' mês' : ' meses') +
+          ' · vou juntar</span><span class="num">' + Formatar.dinheiro(total) + '</span></div>' +
+        '<div class="prev-linha"><span>contas que entram</span><span class="num">' +
+          Formatar.dinheiro(totalContas) + '</span></div>' +
+        '<div class="prev-linha prev-linha--forte"><span>sobra prevista</span>' +
+          '<span class="num ' + (sobra >= 0 ? 'v-positivo' : 'v-negativo') + '">' +
+          Formatar.dinheiro(sobra) + '</span></div>'
+      );
+  }
+
+  function abrirModalMeta(id) {
+    editandoMetaId = id || null;
+    var meta = id ? Store.obterMeta(id) : null;
+
+    document.getElementById('metaTitulo').textContent = meta ? 'Editar meta' : 'Nova meta';
+    document.getElementById('mNome').value = meta ? meta.nome : '';
+    document.getElementById('mTotal').value = '';
+
+    montarMesesDoAssistente(meta);
+    montarCategoriasDoAssistente(meta);
+    atualizarPreviaDaMeta();
+
+    document.getElementById('camadaMeta').hidden = false;
+    document.getElementById('mNome').focus();
+  }
+
+  function fecharModalMeta() {
+    document.getElementById('camadaMeta').hidden = true;
+    editandoMetaId = null;
+  }
+
+  function salvarMeta(ev) {
+    ev.preventDefault();
+    var nome = document.getElementById('mNome').value.trim();
+    var meses = lerMesesDoAssistente();
+    var cats = lerCategoriasDoAssistente();
+
+    if (!nome) { toast('Dê um nome para a meta.'); return; }
+    if (!meses.length) { toast('Marque pelo menos um mês.'); return; }
+
+    if (editandoMetaId) {
+      Store.atualizarMeta(editandoMetaId, {
+        nome: nome,
+        meses: meses.sort(function (a, b) { return Metas.chaveMes(a.ano, a.mes) - Metas.chaveMes(b.ano, b.mes); }),
+        selecao: Object.assign({}, Store.obterMeta(editandoMetaId).selecao, { categorias: cats })
+      });
+      toast('Meta atualizada.');
+      fecharModalMeta();
+      renderRota();
+      return;
+    }
+
+    var nova = Metas.novaMeta({ nome: nome, meses: meses, categorias: cats });
+    Store.adicionarMeta(nova);
+    toast('Meta criada.');
+    fecharModalMeta();
+    estado.mesAtivo = null;
+    irPara('metas/' + nova.id);
+  }
+
+  function excluirMeta(id) {
+    var meta = Store.obterMeta(id);
+    if (!meta) return;
+    // D007.8 — a meta só LÊ as contas. Apagar a meta não pode encostar em nenhuma delas.
+    confirmar('Excluir meta',
+      'Isto apaga a meta "' + meta.nome + '" e o extrato dela (' +
+      (meta.movimentos || []).length + ' lançamento(s)). As suas contas a pagar NÃO são afetadas.',
+      [
+        { rotulo: 'Cancelar', classe: 'botao-fantasma', valor: null },
+        { rotulo: 'Excluir a meta', classe: 'botao-perigo', valor: 'sim' }
+      ]).then(function (resp) {
+        if (resp !== 'sim') return;
+        Store.removerMeta(id);
+        toast('Meta excluída. Suas contas continuam intactas.');
+        irPara('metas');
+      });
+  }
+
+  // ---- lançar dinheiro (aporte / retirada) ----
+  var aporteContexto = { metaId: null, tipo: 'aporte' };
+
+  function ultimoValorLancado(meta) {
+    var aportes = (meta.movimentos || []).filter(function (m) { return m.tipo === 'aporte'; });
+    return aportes.length ? aportes[aportes.length - 1].valor : 0;
+  }
+
+  function dentroDosMesesDaMeta(meta, iso) {
+    var p = Datas.parseISO(iso);
+    return Metas.temMes(meta, p.ano, p.mes);
+  }
+
+  function abrirModalAporte(metaId, tipo) {
+    var meta = Store.obterMeta(metaId);
+    if (!meta) return;
+    aporteContexto = { metaId: metaId, tipo: tipo === 'retirada' ? 'retirada' : 'aporte' };
+    var ehRetirada = aporteContexto.tipo === 'retirada';
+
+    document.getElementById('aporteTitulo').textContent =
+      ehRetirada ? 'Retirar da caixinha' : 'Adicionar dinheiro na meta';
+    document.getElementById('aporteDica').textContent = ehRetirada
+      ? 'A retirada fica registrada no extrato — depois você sabe por que o cofre encolheu.'
+      : 'Cada lançamento entra no extrato e alivia a meta de amanhã.';
+
+    // data padrão: hoje se hoje faz parte da meta; senão o 1º dia do mês aberto mais próximo
+    var hoje = Datas.hoje();
+    var padrao = hoje;
+    if (!dentroDosMesesDaMeta(meta, hoje)) {
+      var meses = Metas.mesesOrdenados(meta);
+      var alvo = meses.filter(function (m) {
+        return Metas.estadoDoMes(m.ano, m.mes, hoje) !== 'encerrado';
+      })[0] || meses[meses.length - 1];
+      if (alvo) padrao = Datas.formatarISO(alvo.ano, alvo.mes, 1);
+    }
+    document.getElementById('aData').value = padrao;
+    document.getElementById('aValor').value = '';
+    document.getElementById('aNota').value = '';
+
+    var ultimo = ultimoValorLancado(meta);
+    var atalhos = [50, 100, 200].map(function (v) {
+      return '<button type="button" class="chip" data-valor="' + v + '">+' + v + '</button>';
+    });
+    if (ultimo > 0 && [50, 100, 200].indexOf(ultimo) === -1) {
+      atalhos.push('<button type="button" class="chip" data-valor="' + ultimo + '">repetir ' +
+        Formatar.dinheiro(ultimo) + '</button>');
+    }
+    document.getElementById('aAtalhos').innerHTML = ehRetirada ? '' : atalhos.join('');
+
+    document.getElementById('camadaAporte').hidden = false;
+    document.getElementById('aValor').focus();
+  }
+
+  function fecharModalAporte() { document.getElementById('camadaAporte').hidden = true; }
+
+  function salvarAporte(ev) {
+    ev.preventDefault();
+    var meta = Store.obterMeta(aporteContexto.metaId);
+    if (!meta) return;
+
+    var data = document.getElementById('aData').value || Datas.hoje();
+    var valor = Number(document.getElementById('aValor').value);
+    var nota = document.getElementById('aNota').value.trim();
+
+    if (!valor || valor <= 0) { toast('Informe um valor maior que zero.'); return; }
+
+    // D007.7 — lançamento fora dos meses da meta some da conta. Em vez de aceitar em silêncio,
+    // o erro vira oferta: estender a campanha até aquele mês.
+    if (!dentroDosMesesDaMeta(meta, data)) {
+      var p = Datas.parseISO(data);
+      var nomeMes = Formatar.capitalizar(Datas.nomeMes(p.mes)) + ' de ' + p.ano;
+      confirmar('Data fora da meta',
+        nomeMes + ' não faz parte de "' + meta.nome + '". Quer estender a meta até lá?',
+        [
+          { rotulo: 'Cancelar', classe: 'botao-fantasma', valor: null },
+          { rotulo: 'Estender até ' + nomeMes, classe: 'botao-principal', valor: 'estender' }
+        ]).then(function (resp) {
+          if (resp !== 'estender') return;
+          var meses = Metas.mesesOrdenados(meta);
+          var alvoPadrao = meses.length ? meses[meses.length - 1].alvo : 0;
+          Store.atualizarMeta(meta.id, {
+            meses: meses.concat([{ ano: p.ano, mes: p.mes, alvo: alvoPadrao }])
+              .sort(function (a, b) { return Metas.chaveMes(a.ano, a.mes) - Metas.chaveMes(b.ano, b.mes); })
+          });
+          gravarLancamento(meta.id, data, valor, nota);
+        });
+      return;
+    }
+
+    gravarLancamento(meta.id, data, valor, nota);
+  }
+
+  function gravarLancamento(metaId, data, valor, nota) {
+    var mov = Metas.novoMovimento({ tipo: aporteContexto.tipo, data: data, valor: valor, nota: nota });
+    Store.adicionarMovimento(metaId, mov);
+
+    var meta = Store.obterMeta(metaId);
+    var p = Datas.parseISO(data);
+    var r = Metas.resumoDoMes(meta, Store.listarContas(), p.ano, p.mes, Datas.hoje(), {
+      outrasMetas: Store.listarMetas(), saldoDisponivel: Metas.saldoDaMeta(meta)
+    });
+
+    if (aporteContexto.tipo === 'retirada') {
+      toast('Retirada de ' + Formatar.dinheiro(valor) + ' registrada.');
+    } else if (r.faltaJuntar <= 0) {
+      toast('Caixinha de ' + Datas.nomeMes(p.mes) + ' batida! O excedente vai pro cofre.');
+    } else {
+      toast('Lançado! Agora faltam ' + Formatar.dinheiro(r.metaPorDia) + ' por dia.');
+    }
+
+    fecharModalAporte();
+    estado.mesAtivo = p.ano + '-' + p.mes;
+    renderRota();
+  }
+
   // ---------------------------------------------------------------- AÇÕES
   /**
    * Delegação ÚNICA, anexada uma vez em iniciar(). NUNCA reanexar a cada render: #conteudo é
@@ -434,6 +801,32 @@
       if (acao === 'alternar-pago') alternarPago(id);
       else if (acao === 'editar') abrirModalConta(id);
       else if (acao === 'excluir') excluirConta(id).then(function (m) { if (m) renderRota(); });
+      else if (acao === 'nova-meta') abrirModalMeta(null);
+      else if (acao === 'abrir-meta') { estado.mesAtivo = null; irPara('metas/' + id); }
+      else if (acao === 'voltar-metas') { estado.mesAtivo = null; irPara('metas'); }
+      else if (acao === 'editar-meta') abrirModalMeta(id);
+      else if (acao === 'excluir-meta') excluirMeta(id);
+      else if (acao === 'novo-aporte') abrirModalAporte(id, 'aporte');
+      else if (acao === 'nova-retirada') abrirModalAporte(id, 'retirada');
+    });
+
+    // Chips de mês dentro de uma meta
+    elConteudo.addEventListener('click', function (ev) {
+      var chip = ev.target.closest('[data-mes]');
+      if (!chip || !estado.metaAberta) return;
+      estado.mesAtivo = chip.getAttribute('data-mes');
+      telaMeta(estado.metaAberta);
+      sincronizarFab();
+    });
+
+    // Card de meta também abre pelo teclado (é um role="button")
+    elConteudo.addEventListener('keydown', function (ev) {
+      if (ev.key !== 'Enter' && ev.key !== ' ') return;
+      var card = ev.target.closest('[data-acao="abrir-meta"]');
+      if (!card) return;
+      ev.preventDefault();
+      estado.mesAtivo = null;
+      irPara('metas/' + card.getAttribute('data-id'));
     });
 
     document.addEventListener('click', function (ev) {
@@ -744,16 +1137,37 @@
   // ---------------------------------------------------------------- ROTEADOR
   function renderRota() {
     var hash = location.hash.replace('#/', '') || 'dashboard';
-    if (['dashboard', 'pagar', 'receber', 'config'].indexOf(hash) === -1) hash = 'dashboard';
-    estado.rota = hash;
+    var partes = hash.split('/');
+    var base = partes[0];
+    if (['dashboard', 'pagar', 'receber', 'metas', 'config'].indexOf(base) === -1) base = 'dashboard';
+    estado.rota = base;
     renderNav();
 
-    if (hash === 'dashboard') telaDashboard();
-    else if (hash === 'pagar') telaLista('pagar');
-    else if (hash === 'receber') telaLista('receber');
+    if (base === 'dashboard') telaDashboard();
+    else if (base === 'pagar') telaLista('pagar');
+    else if (base === 'receber') telaLista('receber');
+    else if (base === 'metas') { if (partes[1]) telaMeta(partes[1]); else telaMetas(); }
     else telaConfig();
 
+    sincronizarFab();
     window.scrollTo(0, 0);
+  }
+
+  /**
+   * O "+" muda de significado conforme a tela: em Metas ele cria meta (na lista) ou lança
+   * dinheiro (dentro de uma). Botão que faz a coisa errada no contexto é pior que botão nenhum.
+   */
+  function sincronizarFab() {
+    var fab = document.getElementById('btnNovaConta');
+    if (!fab) return;
+    // Dentro de uma meta o "+" abria "nova conta" — a ação errada para a tela em que se está.
+    // Vale inclusive na visão Geral: ali o lançamento cai no mês corrente da campanha.
+    var emMeta = estado.rota === 'metas' && !!estado.metaAberta;
+    var naListaDeMetas = estado.rota === 'metas' && !estado.metaAberta;
+
+    fab.setAttribute('aria-label',
+      emMeta ? 'Adicionar dinheiro na meta' : (naListaDeMetas ? 'Nova meta' : 'Nova conta'));
+    fab.innerHTML = Icones.get(emMeta ? 'subir' : 'mais');
   }
 
   function iniciar() {
@@ -776,7 +1190,71 @@
     document.getElementById('btnConfig').addEventListener('click', function () { irPara('config'); });
 
     document.getElementById('btnNovaConta').innerHTML = Icones.get('mais');
-    document.getElementById('btnNovaConta').addEventListener('click', function () { abrirModalConta(null); });
+    document.getElementById('btnNovaConta').addEventListener('click', function () {
+      if (estado.rota === 'metas' && estado.metaAberta) {
+        abrirModalAporte(estado.metaAberta, 'aporte');
+      } else if (estado.rota === 'metas' && !estado.metaAberta) {
+        abrirModalMeta(null);
+      } else {
+        abrirModalConta(null);
+      }
+    });
+
+    // ---- assistente da meta ----
+    document.getElementById('fecharModalMeta').innerHTML = Icones.get('fechar');
+    document.getElementById('fecharModalMeta').addEventListener('click', fecharModalMeta);
+    document.getElementById('cancelarModalMeta').addEventListener('click', fecharModalMeta);
+    document.getElementById('metaFundo').addEventListener('click', fecharModalMeta);
+    document.getElementById('formMeta').addEventListener('submit', salvarMeta);
+
+    document.getElementById('mMeses').addEventListener('change', function (ev) {
+      var chk = ev.target.closest('input[type=checkbox]');
+      if (!chk) return;
+      var linha = chk.closest('.mes-linha');
+      var alvo = linha.querySelector('.mes-alvo');
+      alvo.disabled = !chk.checked;
+      linha.classList.toggle('marcado', chk.checked);
+      if (!chk.checked) alvo.value = '';
+      atualizarPreviaDaMeta();
+    });
+    document.getElementById('mMeses').addEventListener('input', function (ev) {
+      if (ev.target.closest('.mes-alvo')) atualizarPreviaDaMeta();
+    });
+
+    document.getElementById('mCats').addEventListener('click', function (ev) {
+      var chip = ev.target.closest('.chip--cat');
+      if (!chip) return;
+      chip.classList.toggle('ativo');
+      atualizarPreviaDaMeta();
+    });
+
+    // "Dividir igual": digita o total e ele distribui pelos meses marcados, sem perder centavo
+    document.getElementById('mDividir').addEventListener('click', function () {
+      var total = Number(document.getElementById('mTotal').value);
+      var linhas = Array.prototype.filter.call(
+        document.querySelectorAll('#mMeses .mes-linha'),
+        function (l) { return l.querySelector('input[type=checkbox]').checked; });
+      if (!total || total <= 0) { toast('Digite o total que você quer juntar.'); return; }
+      if (!linhas.length) { toast('Marque os meses primeiro.'); return; }
+      var partes = Metas.dividirIgual(total, linhas.length);
+      linhas.forEach(function (l, i) { l.querySelector('.mes-alvo').value = partes[i]; });
+      atualizarPreviaDaMeta();
+      toast(Formatar.dinheiro(total) + ' divididos em ' + linhas.length + ' meses.');
+    });
+
+    // ---- lançar dinheiro ----
+    document.getElementById('fecharModalAporte').innerHTML = Icones.get('fechar');
+    document.getElementById('fecharModalAporte').addEventListener('click', fecharModalAporte);
+    document.getElementById('cancelarModalAporte').addEventListener('click', fecharModalAporte);
+    document.getElementById('aporteFundo').addEventListener('click', fecharModalAporte);
+    document.getElementById('formAporte').addEventListener('submit', salvarAporte);
+    document.getElementById('aAtalhos').addEventListener('click', function (ev) {
+      var b = ev.target.closest('[data-valor]');
+      if (!b) return;
+      var campo = document.getElementById('aValor');
+      campo.value = (Number(campo.value) || 0) + Number(b.getAttribute('data-valor'));
+      campo.focus();
+    });
 
     document.getElementById('fecharModalConta').innerHTML = Icones.get('fechar');
     document.getElementById('fecharModalConta').addEventListener('click', fecharModalConta);
@@ -801,6 +1279,8 @@
     document.addEventListener('keydown', function (ev) {
       if (ev.key !== 'Escape') return;
       if (!document.getElementById('camadaModal').hidden) fecharModalConta();
+      else if (!document.getElementById('camadaMeta').hidden) fecharModalMeta();
+      else if (!document.getElementById('camadaAporte').hidden) fecharModalAporte();
       else if (!document.getElementById('camadaPagar').hidden) document.getElementById('camadaPagar').hidden = true;
       else if (!document.getElementById('camadaConfirm').hidden) document.getElementById('camadaConfirm').hidden = true;
     });

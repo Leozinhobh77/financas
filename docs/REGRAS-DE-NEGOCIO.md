@@ -18,12 +18,171 @@
 | RN007 — Ritmo da semana com arrasto em cascata | `testes/motor.teste.js` · casos `RN007-*` |
 | RN008 — "Veio de antes" separado do mês corrente | `testes/motor.teste.js` · `pendenteDeMesesAnteriores` |
 | RN009 — Painel do período não responde ao filtro de status | `testes/motor.teste.js` · casos `RN009-*` + E2E |
+| RN010 — Meta é campanha de N meses selecionáveis, com alvo por mês | `testes/motor.teste.js` · casos `RN010-*` |
+| RN011 — Seleção por categoria é regra viva, não fotografia | `testes/motor.teste.js` · casos `RN011-*` |
+| RN012 — Uma conta pertence a no máximo uma meta | `testes/motor.teste.js` · casos `RN012-*` |
+| RN013 — Duas linhas por dia: alvo (juntar) e piso (não dever) | `testes/motor.teste.js` · casos `RN013-*` |
+| RN014 — Sobra prevista × real; cofre nunca negativo; arrasto | `testes/motor.teste.js` · casos `RN014-*` |
+| RN015 — Ritmo real, projeção e dia da virada | `testes/motor.teste.js` · casos `RN015-*` |
+| RN017 — Dinheiro movimentado não sai por mudança de filtro | `testes/motor.teste.js` · casos `RN017-*` |
+| RN019 — Movimento guarda fotografia da conta | `testes/motor.teste.js` · casos `RN019-*` |
 
 Meta: 100%. `/harness doctor` reprova regra sem teste em projeto T2+.
+
+> As regras de Meta (RN010+) têm o **manual em linguagem comum** em `docs/METAS.md`, com os
+> exemplos que o usuário deu. Aqui fica só a regra formal e o teste que a prova.
 
 ---
 
 ## As regras
+
+### RN010 — Meta é uma campanha de N meses, com alvo próprio por mês
+**Regra:** uma meta tem **nome livre** e uma lista de meses **selecionáveis** — 1 a N, podendo
+**pular** meses e **atravessar o ano**. Cada mês tem a sua **caixinha** (alvo). O total da
+campanha é a soma dos alvos. O assistente aceita um total e **divide igual em centavos**.
+
+**Exemplos:**
+- ago 9.000 + set 9.000 + out 9.000 + nov 8.000 = campanha de **R$ 35.000** em 4 meses
+- nov/26 + jan/27 + fev/27 (dezembro pulado) é válido e sai sempre ordenado
+- 36.000 ÷ 4 = 9.000 exatos · 10.000 ÷ 3 = 3.333,33 + 3.333,33 + 3.333,**34** (não some centavo)
+
+**Teste:** `motor.teste.js` · `RN010-1..3`.
+**Procedência:** pedido do usuário — "eu posso escolher se eu quero um mês, dois, três, quantos
+meses eu quiser... agosto nove mil, setembro nove, outubro nove, e novembro oito".
+
+---
+
+### RN011 — A seleção de contas é uma regra viva, não uma fotografia
+**Regra:** a meta escolhe contas **por categoria**. Isso é uma **regra permanente**: conta nova
+que caia numa categoria marcada **entra sozinha**, inclusive em meses futuros. Ajustes pontuais
+por conta (`incluidas` / `excluidas`) sobrepõem a categoria. **Só contas a pagar** entram.
+
+**Ordem de precedência:** movimento registrado (RN017) > excluída > incluída > categoria.
+
+**Exemplos:**
+- Meta marca `casa`; chega um IPTU novo de `casa` em agosto → entra sem o usuário fazer nada
+- Excluir só a Energia tira a Energia; incluir a fatura de `cartão` traz só ela
+- Um salário (`receber`) nunca entra, mesmo com a categoria marcada
+
+**Teste:** `motor.teste.js` · `RN011-1..3`.
+**Procedência:** pedido do usuário — "como os outros três meses ainda não vou ter conta nenhuma,
+vai ficar vazio; de acordo o mês vai virando e o recorrente vai virando, vai aparecendo conta".
+
+---
+
+### RN012 — Uma conta pertence a no máximo uma meta
+**Regra:** se duas metas selecionariam a mesma conta, apenas **uma** fica com ela. Desempate,
+nesta ordem: (1) a meta que **já mexeu no dinheiro** daquela conta; (2) a meta **mais antiga**
+(`criadoEm`, com o `id` como critério final para ser determinístico).
+
+**Por quê:** sem isso, duas campanhas que marquem `casa` contam o mesmo aluguel duas vezes; ao
+pagar por uma, a outra continua achando que deve. **Os dois cofres mentem e nada denuncia.**
+
+**Na tela:** a conta já reservada aparece **travada**, com o nome de quem a tem.
+
+**Exemplos:**
+- "Reserva" (criada em 01/07) e "Viagem" (20/07) marcam `casa` → as 4 contas ficam na Reserva
+- Se a Viagem já deu baixa no aluguel, o aluguel é **dela**, mesmo sendo a mais nova
+
+**Teste:** `motor.teste.js` · `RN012-1..3`.
+**Procedência:** furo **F1** da auditoria de 2026-07-27 (ver `DECISOES.md` D007.1).
+
+---
+
+### RN013 — Duas linhas por dia: o alvo e o piso
+**Regra:** todo mês em curso tem **dois** números diários:
+
+- **Juntar hoje** = `(alvo − juntado no mês) ÷ dias que restam`
+- **Mínimo do dia** = `(o que falta pagar − o que está em mãos) ÷ dias que restam`
+
+Os dias **incluem hoje** (o dia ainda não acabou) e têm **piso 1** — nunca divide por zero.
+O "em mãos" é o saldo da **campanha inteira**, não do mês: dinheiro de agosto continua
+existindo em setembro.
+
+**Exemplos (agosto, 31 dias, caixinha 9.000, contas 6.000):**
+- Dia 1º, nada juntado → juntar **R$ 290,32/dia**; mínimo **R$ 193,55/dia**
+- Lançou 300 e 600 nos dias 1 e 2 → no dia 3 cai para **R$ 279,31**
+- Não lançou nada no dia 3 → no dia 4 sobe para **R$ 289,29**
+- Já com 4.000 em mãos → o mínimo cai para **R$ 64,52/dia** (2.000 ÷ 31)
+- Dia 31 → `dias = 1`, sem divisão por zero
+
+**Teste:** `motor.teste.js` · `RN013-1..5`.
+**Procedência:** pedido do usuário — "se eu não coloquei nada, amanhã provavelmente vai ser
+maior a quantidade que eu tenho que [juntar]".
+
+---
+
+### RN014 — Sobra prevista × sobra real, cofre e arrasto
+**Regra:**
+
+- **Sobra prevista** = `caixinha − contas` (o plano)
+- **Sobra real** = `juntado − retirado − pago` (o fato)
+- **O cofre soma a real**, mês a mês, e **nunca é negativo**: o que faltou vira **conta em
+  aberto**, não saldo negativo.
+- Conta pendente de um mês **encerrado** é **arrastada** para o **primeiro mês ainda aberto** —
+  é lá que ela vai ser paga de verdade, e é lá que ela encolhe a sobra.
+- Mês futuro **sem contas lançadas** é marcado como tal — não vira "mínimo R$ 0,00", que
+  pareceria boa notícia sendo apenas ausência de dado.
+
+**Exemplos (campanha 9/9/9/8 = 35.000, contas 6.000/6.000/6.600/4.400):**
+- Nada lançado → cofre previsto **R$ 12.000**; escada 3.000 → 6.000 → 8.400 → 12.000
+- Juntou 12.400 em agosto e pagou os 6.000 → cofre hoje **6.400**, previsto **R$ 15.400**;
+  setembro **continua pedindo 9.000**
+- Agosto fechou com 4.000 juntados e 4.000 pagos → foi pro cofre **R$ 0**, e 2.000 arrastados
+  para setembro, cuja sobra cai de 3.000 para **1.000**; cofre previsto vira **R$ 7.000**
+- Pagou 5.000 tendo juntado 1.000 → saldo bruto −4.000, mas **cofre = 0**
+
+**Teste:** `motor.teste.js` · `RN014-1..6`.
+**Procedência:** pedido do usuário, nas três rodadas — "o intuito é de sobrar três mil";
+"vamos supor que eu junte quatro mil, como é que ficaria?"; "eu sei que eu tenho uma caixinha
+de doze mil sobrando".
+
+---
+
+### RN015 — Ritmo real, projeção e dia da virada
+**Regra:** no mês em curso o app calcula o **ritmo real** (`juntado ÷ dias corridos`), a
+**projeção** (`ritmo × dias do mês`) e o **dia da virada**: a data em que o dinheiro em mãos
+passa a cobrir tudo que falta pagar. Se já cobre, está virado e não há data pendente.
+
+**Exemplos:**
+- 400/dia por 10 dias em agosto → ritmo 400, projeção **R$ 12.400**
+- 4.000 em mãos, 6.000 a pagar, ritmo 400 → descoberto 2.000 → virada em **15/08** (5 dias)
+- 7.000 em mãos com 6.000 a pagar → **já virou**, sem data
+
+**Teste:** `motor.teste.js` · `RN015-1..3`.
+**Procedência:** enriquecimento aprovado na auditoria de 2026-07-27.
+
+---
+
+### RN017 — Dinheiro que já se moveu não é desfeito por mudança de filtro
+**Regra (invariante do módulo):** conta com movimento registrado **continua na meta**, mesmo
+que a categoria dela mude, mesmo que a categoria saia da seleção, mesmo que ela seja excluída
+manualmente. Para tirá-la, é preciso **desfazer o lançamento** primeiro.
+
+**Por quê:** a seleção é uma regra viva (RN011). Sem esta trava, trocar a categoria do aluguel
+de `casa` para `lazer` **levava junto uma baixa de R$ 1.800 que já tinha acontecido** — o cofre
+mudava sozinho sem ninguém encostar em dinheiro.
+
+**Teste:** `motor.teste.js` · `RN017-1..3`.
+**Procedência:** furo **F3** da auditoria de 2026-07-27 (ver `DECISOES.md` D007.3).
+
+---
+
+### RN019 — Todo movimento guarda a fotografia da conta
+**Regra:** um lançamento ligado a uma conta guarda `descricao`, `valor`, `vencimento` e
+`categoria` **no momento em que foi feito**. O extrato não depende da conta continuar existindo
+nem continuar com o mesmo valor.
+
+**Por quê:** abater o aluguel e depois **excluir** a conta deixava o extrato apontando para um
+id inexistente; **editar** o valor de 340 para 400 deixava a baixa mentindo em 60 reais.
+
+**Exemplo:** meta com aporte de 1.000 e baixa de 340; a conta é apagada → o saldo continua
+**R$ 660** e o extrato continua mostrando "Energia".
+
+**Teste:** `motor.teste.js` · `RN019-1..2`.
+**Procedência:** furo **F2** da auditoria de 2026-07-27 (ver `DECISOES.md` D007.2).
+
+---
 
 ### RN001 — Recorrência só avança quando a atual é marcada paga
 **Regra:** uma conta recorrente existe, a cada momento, como **uma única ocorrência ativa**.

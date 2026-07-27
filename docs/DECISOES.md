@@ -14,6 +14,8 @@
 
 | # | Decisão | Data | Status |
 |---|---|---|---|
+| D007 | Metas: modelo de dados e as 10 travas da auditoria (D007.1 a D007.10) | 2026-07-27 | Ativa |
+| D006 | "Investigue antes de agir" (AGENTS.md §3 nº 1) é regra de fundação — não se abate | 2026-07-27 | Ativa |
 | D005 | Painel: no máximo 2 colunas no celular, sem `overflow:hidden` em valor | 2026-07-27 | Ativa |
 | D004 | Filtro de status usa os valores de `situacao()` (`paga`, não `pago`) | 2026-07-27 | Ativa |
 | D003 | `guarda.ps1` normaliza caminho e força UTF-8 (evita falso positivo em push de outro repo) | 2026-07-26 | Ativa |
@@ -39,6 +41,65 @@ for acionada** (`docs/GOVERNANCA.md` §6).
 ---
 
 _(as decisões entram abaixo, mais nova primeiro)_
+
+### D007 — Metas: modelo de dados e as 10 travas da auditoria (2026-07-27)
+
+**Contexto.** O módulo de Metas foi desenhado em três rodadas de conversa e passou por uma
+**auditoria completa antes de qualquer linha de código**, que encontrou 16 furos — 3 deles
+capazes de corromper saldo em silêncio. As decisões abaixo são a resposta a cada um. Estão
+agrupadas numa entrada só porque são **uma deliberação sobre um subsistema**; o índice de
+DECISOES.md estoura em 15 entradas (regra do próprio projeto). O manual em linguagem comum
+está em `docs/METAS.md`; as regras formais, em `REGRAS-DE-NEGOCIO.md` RN010–RN019.
+
+**Premissa que orienta todas elas:** a caixinha **paga** as contas — não são dois bolsos — e a
+**sobra é o propósito**, não um resto.
+
+| # | Decisão | Motivo / furo que fecha |
+|---|---|---|
+| **D007.1** | Uma conta pertence a **no máximo uma meta**. Desempate: quem já mexeu no dinheiro dela; depois a meta mais antiga. | **F1.** Duas campanhas marcando `casa` contavam o mesmo aluguel duas vezes. Pago numa, a outra seguia cobrando: os dois cofres mentiam e nada denunciava. → RN012 |
+| **D007.2** | Todo movimento guarda uma **fotografia** da conta (descrição, valor, vencimento, categoria da época). | **F2.** Excluir a conta deixava a baixa órfã; editar o valor de 340 para 400 deixava a baixa mentindo em 60 reais. → RN019 |
+| **D007.3** | **Invariante:** dinheiro que já se moveu **nunca** é desfeito por mudança de filtro. Conta com movimento fica na meta, mesmo mudando de categoria ou sendo excluída à mão. | **F3.** A seleção é uma regra viva; trocar a categoria do aluguel levava junto uma baixa de R$ 1.800 já realizada, e o cofre mudava sozinho. → RN017 |
+| **D007.4** | **Um extrato único** (`movimentos`: aporte / retirada / baixa) em vez de três listas paralelas. Valor sempre positivo; o tipo dá a direção. | **F5.** A retirada do cofre aparecia na tela mas não existia no modelo. Três listas para o mesmo dinheiro é como saldo desanda. O teste `D007.4-1` exige que o fim do extrato **seja** o saldo. |
+| **D007.5** | Excedente do mês vai **pro cofre** (padrão). Abater do mês seguinte é opção desligada. | Descontar o excedente comeria justamente o dinheiro que custou esforço guardar — o app puniria quem foi bem. A opção existe para quem tem dívida-alvo fixa. |
+| **D007.6** | O **cofre nunca é negativo**. O que faltou vira **conta em aberto**, arrastada para o primeiro mês ainda aberto. | Cofre é dinheiro guardado; dívida é outra coisa. Um número só esconderia as duas informações. → RN014 |
+| **D007.7** | Lançamento com data **fora** dos meses da meta é bloqueado — e o erro vira **oferta de estender** a campanha até aquele mês. | **F4.** Aceitar em silêncio faria o dinheiro sumir da conta sem explicação. |
+| **D007.8** | Excluir uma meta **não encosta em nenhuma conta**. A confirmação diz isso com todas as letras. | **F10.** A meta **lê** as contas; nunca as possui. Contas são a fonte da verdade. |
+| **D007.9** | Mês futuro sem contas mostra "ainda sem contas lançadas" — **nunca** "mínimo R$ 0,00". | **F6.** R$ 0,00 pareceria boa notícia sendo apenas ausência de dado. |
+| **D007.10** | Pagar dentro da meta sem saldo **avisa** e oferece "paguei com dinheiro de fora". | **F7.** Deixaria a caixinha negativa em silêncio. Separa "a conta foi paga" de "saiu da minha caixinha". |
+
+**Furos menores fechados junto:** F8 parcelamento que ultrapassa o fim da meta é sinalizado ·
+F9 recorrência paga dentro da meta avisa que a próxima entrou no mês seguinte · F11 escada de
+12 meses colapsa · F12 rótulo com ano quando a campanha cruza o ano · F13 editar alvo de mês
+encerrado confirma antes · F14 tabbar de 5 abas testada nas 8 larguras · F15 alvo R$ 0 aceito ·
+F16 backup antigo sem `metas` migra e tem teste.
+
+**Achados durante a implementação** (não estavam na auditoria, apareceram no teste):
+- `.campo input { width:100% }` (0,1,1) vencia `.mes-alvo` (0,1,0): o campo de valor cobria a
+  caixa de marcar o mês e **engolia o toque**. Virou teste com `elementFromPoint`.
+- O "+" flutuante abria **"Nova conta"** dentro de uma meta — ação errada para a tela.
+- `.pp-bloco-nota` herdava `white-space: nowrap` do painel do período, onde as notas são
+  curtas; com valor em dinheiro dentro, estourava a coluna.
+- Texto em item de flex sem `min-width: 0` empurrava a **página inteira** para o lado em 320px.
+
+**Relacionado:** Plano 0005, `docs/METAS.md`, RN010–RN019, D005 (tipografia de dinheiro
+reaproveitada).
+
+### D006 — "Investigue antes de agir" é regra de fundação, não candidata a abate (2026-07-27)
+**Decisão:** a regra nº 1 de `AGENTS.md` §3 fica, permanentemente. Não é candidata a abate por
+falta de procedência de incidente, e o `/harness doctor` não deve mais listá-la como tal.
+**Motivo:** o usuário a classifica como **uma das mais importantes do harness** — é ela que
+impede a IA de trabalhar por suposição sobre um código que ela não leu. Num app onde o dado é
+dinheiro e o motor de recorrência/parcelamento tem casos de borda densos (RN001–RN009),
+implementar às cegas não produz um erro visível na hora: produz um número errado que só aparece
+no extrato, semanas depois. É o mesmo perfil de risco que a RN005 protege.
+**Procedência:** avaliada explicitamente no `/harness doctor` de 27/07/2026, que a apontou como
+candidata a abate por não ter incidente registrado. O usuário confirmou que a IA nunca
+implementou sem investigar **e** decidiu mantê-la mesmo assim. Esta decisão É a procedência: a
+regra existe por escolha deliberada de quem toca o projeto, não por inércia de template.
+**Por que zero incidentes não a enfraquece:** ela pertence à mesma classe do `.gitignore` — o
+sucesso dela é ninguém precisar dela. A Lei 4 já reserva essa proteção a guardas cujo dano é
+irreversível; aqui vale pelo mesmo motivo (dinheiro errado não se desfaz depois de pago).
+**Relacionado:** `CONSTITUICAO.md` Lei 1 e Lei 4, D005 (bug silencioso, sem erro na tela).
 
 ### D005 — Painel: no máximo 2 colunas no celular, e valor nunca com `overflow: hidden` (2026-07-27)
 **Decisão:** os blocos do painel do período usam **no máximo 2 colunas em qualquer celular**

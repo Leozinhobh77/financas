@@ -10,6 +10,7 @@ pip install playwright
 playwright install chromium
 
 python testes/e2e/test_app_financas.py   # fluxos e regras
+python testes/e2e/test_metas.py          # metas: campanha, cofre, lançamento
 python testes/e2e/test_sem_corte.py      # layout: nenhum valor cortado
 ```
 
@@ -22,6 +23,22 @@ responsivo mobile (390×844) e desktop (1400×900). Critério: **zero erros de c
 
 Screenshots de cada rodada vão para `capturas/` (não versionado — é saída de teste, não fonte).
 
+
+## `test_metas.py` — por que existe
+
+Cobre o módulo de Metas de ponta a ponta: aba na tabbar, lista de campanhas, visão geral com a
+**escada do cofre**, painel do mês, lançamento de dinheiro com atalhos rápidos, assistente de
+criação com o divisor automático, e **backup antigo (sem o campo `metas`) abrindo sem quebrar**.
+
+Guarda três regressões que **os testes não teriam pegado sozinhos** — nasceram de olhar a tela:
+
+1. **`elementFromPoint` na caixa de marcar o mês.** `.campo input { width:100% }` (0,1,1) vencia
+   `.mes-alvo` (0,1,0), e o campo de valor cobria o checkbox: o toque era engolido. O teste
+   agora exige que o elemento no centro do checkbox **seja** o checkbox.
+2. **O "+" flutuante dentro de uma meta.** Abria "Nova conta" — a ação errada para a tela. O
+   teste exige que abra o lançamento de dinheiro, tanto na visão do mês quanto na Geral.
+3. **Nenhum valor cortado** nas mesmas 8 larguras do `test_sem_corte.py`, agora também na lista
+   de metas, no painel do mês e na visão geral.
 
 ## `test_sem_corte.py` — por que existe
 

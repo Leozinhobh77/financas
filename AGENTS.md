@@ -23,6 +23,7 @@ node testes/motor.teste.js
 
 # Rodar os testes de interface (Playwright)
 python testes/e2e/test_app_financas.py   # fluxos e regras de negócio
+python testes/e2e/test_metas.py          # metas: campanha, cofre, lançamento, 8 larguras
 python testes/e2e/test_sem_corte.py      # layout: nenhum valor cortado em 8 larguras
 ```
 
@@ -78,6 +79,7 @@ Versão completa em `docs/GOVERNANCA.md` §2. As linhas 🔴 de comando são imp
 | `docs/PRD.md` | Antes de decidir o **o quê**/**por quê** de uma funcionalidade. |
 | `docs/SPEC.md` | Antes de mexer em código — arquitetura, stack, modelo de dados. |
 | `docs/REGRAS-DE-NEGOCIO.md` | **Antes de tocar em recorrência, parcelamento ou datas.** |
+| `docs/METAS.md` | **Antes de tocar em metas** — caixinha, sobra, cofre e o extrato único. |
 | `docs/DECISOES.md` | Para entender **por que** algo é assim (memória sob demanda). |
 | `Planos/MANUAL.md` + `MODELO-DE-PLANO.md` | Antes de criar/atualizar um plano. |
 | `Planos/INDICE.md` | Para ver o que já está em andamento antes de começar algo novo. |

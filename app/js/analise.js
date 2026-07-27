@@ -122,11 +122,9 @@
     });
   }
 
-  /** Dias entre hoje e o vencimento. Negativo = ja passou. */
+  /** Dias entre hoje e o vencimento. Negativo = ja passou. Delega pra Datas (fonte unica). */
   function diasAte(vencimentoISO, hojeISO) {
-    var a = Datas.paraDate(hojeISO);
-    var b = Datas.paraDate(vencimentoISO);
-    return Math.round((b - a) / 86400000);
+    return Datas.diasEntre(hojeISO, vencimentoISO);
   }
 
   /**

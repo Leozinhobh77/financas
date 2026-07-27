@@ -132,6 +132,21 @@
     return compararISO(inicioISO, iso) <= 0 && compararISO(iso, fimISO) <= 0;
   }
 
+  /**
+   * Dias de `aISO` até `bISO`. Negativo se `b` já passou. Fonte única desta conta — quem
+   * precisar de "quantos dias faltam" chama daqui, nunca reimplementa (analise.js delega).
+   */
+  function diasEntre(aISO, bISO) {
+    return Math.round((paraDate(bISO) - paraDate(aISO)) / 86400000);
+  }
+
+  /** Soma N dias a uma data ISO (N pode ser negativo). Sem armadilha de fuso: só construtor local. */
+  function somarDias(iso, n) {
+    var p = parseISO(iso);
+    var d = new Date(p.ano, p.mes - 1, p.dia + n);
+    return formatarISO(d.getFullYear(), d.getMonth() + 1, d.getDate());
+  }
+
   var Datas = {
     hoje: hoje,
     formatarISO: formatarISO,
@@ -145,7 +160,9 @@
     semanasDoMes: semanasDoMes,
     semanaDe: semanaDe,
     semanaCalendarioDe: semanaCalendarioDe,
-    estaEntre: estaEntre
+    estaEntre: estaEntre,
+    diasEntre: diasEntre,
+    somarDias: somarDias
   };
 
   if (typeof module !== 'undefined' && module.exports) {

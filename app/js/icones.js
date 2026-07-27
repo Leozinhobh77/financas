@@ -81,7 +81,14 @@
 
     tendenciaDesce: '<svg viewBox="0 0 24 24" ' + TRACO + '><path d="M4 8l5.5 5.5L13 10l7 6.5"/><path d="M15.5 16.5H20V12"/></svg>',
 
-    raio: '<svg viewBox="0 0 24 24" ' + TRACO + '><path d="M13.5 3L5.5 13.5h5L10 21l8.5-10.5h-5L13.5 3z"/></svg>'
+    raio: '<svg viewBox="0 0 24 24" ' + TRACO + '><path d="M13.5 3L5.5 13.5h5L10 21l8.5-10.5h-5L13.5 3z"/></svg>',
+
+    // METAS
+    alvo: '<svg viewBox="0 0 24 24" ' + TRACO + '><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/></svg>',
+    cofre: '<svg viewBox="0 0 24 24" ' + TRACO + '><rect x="3" y="5" width="18" height="14" rx="2.5"/><circle cx="10.5" cy="12" r="3.2"/><line x1="10.5" y1="12" x2="10.5" y2="8.8"/><line x1="17" y1="9.5" x2="17" y2="14.5"/></svg>',
+    subir: '<svg viewBox="0 0 24 24" ' + TRACO + '><path d="M12 19V7"/><path d="M6.5 12.5L12 7l5.5 5.5"/></svg>',
+    descer: '<svg viewBox="0 0 24 24" ' + TRACO + '><path d="M12 5v12"/><path d="M17.5 11.5L12 17l-5.5-5.5"/></svg>',
+    sol_nascente: '<svg viewBox="0 0 24 24" ' + TRACO + '><path d="M4 18h16"/><path d="M7.5 18a4.5 4.5 0 0 1 9 0"/><line x1="12" y1="4" x2="12" y2="6.5"/><line x1="5.5" y1="7.5" x2="7" y2="9"/><line x1="18.5" y1="7.5" x2="17" y2="9"/><line x1="2.5" y1="13.5" x2="4.5" y2="13.5"/><line x1="19.5" y1="13.5" x2="21.5" y2="13.5"/></svg>'
   };
 
   function get(nome) {

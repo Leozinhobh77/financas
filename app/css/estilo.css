@@ -793,3 +793,234 @@ main { max-width: 900px; margin: 0 auto; padding: 1.15rem clamp(.9rem, 4vw, 2rem
   .conta { grid-template-columns: auto 1fr; row-gap: .6rem; }
   .conta-direita { grid-column: 1 / -1; flex-direction: row; align-items: center; justify-content: space-between; }
 }
+
+/* ============================================================
+   METAS — campanhas, caixinha, sobra e cofre
+   Reaproveita a tipografia de dinheiro do painel .pp, que já passou
+   pelo teste das 8 larguras (D005). Nenhum valor com overflow
+   hidden aqui: número de dinheiro cortado é número errado.
+   ============================================================ */
+
+.cartao {
+  display: flex; flex-direction: column; gap: .8rem;
+  background: var(--superficie); border: 1px solid var(--borda-suave);
+  border-radius: var(--r-lg); padding: 1rem; box-shadow: var(--sombra-1);
+}
+
+/* cores semânticas das faixas da meta */
+.sem-ok      { color: var(--positivo); }
+.sem-atencao { color: var(--alerta); }
+.sem-critico { color: var(--negativo); }
+.sem-futuro  { color: var(--ink-3); }
+
+/* ---- lista de campanhas ---- */
+.mt-lista { display: flex; flex-direction: column; gap: .7rem; }
+.mt {
+  display: flex; flex-direction: column; gap: .6rem; cursor: pointer;
+  background: var(--superficie); border: 1px solid var(--borda-suave);
+  border-radius: var(--r-lg); padding: .95rem 1rem; box-shadow: var(--sombra-1);
+  transition: border-color .15s, transform .12s;
+}
+.mt:hover, .mt:focus-visible { border-color: var(--accent); transform: translateY(-1px); }
+.mt-cabeca { display: flex; align-items: baseline; justify-content: space-between; gap: .6rem; }
+.mt-nome {
+  display: inline-flex; align-items: center; gap: .4rem;
+  font-weight: 760; font-size: 1rem; color: var(--ink); min-width: 0;
+}
+.mt-nome svg { width: 1.05rem; height: 1.05rem; color: var(--accent); flex-shrink: 0; }
+.mt-periodo { font-size: .72rem; color: var(--ink-3); white-space: nowrap; }
+.mt-rodape {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: .5rem; flex-wrap: wrap; font-size: .78rem; color: var(--ink-2);
+}
+.mt-cofre strong { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); }
+.mt-cofre em { font-style: normal; color: var(--ink-3); font-family: var(--mono); }
+.mt-situacao { display: inline-flex; align-items: center; gap: .3rem; font-weight: 650; }
+.mt-situacao svg { width: .9rem; height: .9rem; }
+
+/* ---- cabeçalho da meta aberta ---- */
+.tela-cabeca--meta { align-items: center; gap: .5rem; }
+.tela-cabeca--meta .tc-meio { flex: 1; min-width: 0; }
+/*
+ * Aqui o título divide a linha com 3 botões — 1.55rem não cabe em 320px e o nome da meta é
+ * livre (pode ser qualquer palavra comprida). Fonte fluida + quebra em qualquer ponto.
+ */
+.tela-cabeca--meta .tela-titulo {
+  font-size: clamp(1.05rem, 4.6vw, 1.45rem); line-height: 1.2; overflow-wrap: anywhere;
+}
+.tela-cabeca--meta .tela-sub { overflow-wrap: anywhere; }
+.icon-btn--voltar svg { transform: scaleX(-1); }
+.botao-compacto {
+  display: inline-flex; align-items: center; gap: .35rem;
+  padding: .55rem .85rem; font-size: .82rem; white-space: nowrap;
+}
+.botao-compacto svg { width: 1rem; height: 1rem; }
+
+/* ---- seletor de meses ---- */
+.chips--meses { overflow-x: auto; flex-wrap: nowrap; padding-bottom: .2rem; scrollbar-width: thin; }
+.chips--meses::-webkit-scrollbar { height: 4px; }
+.chip--mes { position: relative; text-transform: capitalize; }
+.chip-ponto {
+  position: absolute; top: 4px; right: 4px; width: 5px; height: 5px;
+  border-radius: 50%; background: currentColor;
+}
+.chip--cat { display: inline-flex; align-items: center; gap: .3rem; }
+.chip--cat svg { width: .9rem; height: .9rem; }
+
+/* ---- painéis do cofre e do mês ---- */
+.pp--cofre .pp-principal { align-items: flex-start; }
+.pp-principal-nota { font-size: .76rem; color: var(--ink-3); }
+.pp-escopo svg { width: .95rem; height: .95rem; vertical-align: -2px; margin-right: .25rem; }
+/*
+ * Nota de bloco de 2 colunas pode quebrar linha. Ela herdava `white-space: nowrap` do painel
+ * do período, onde as notas são curtas ("3 conta(s)"); aqui elas carregam valor em dinheiro
+ * ("R$ 22.660,00 em aberto") e estouravam a coluna. Quebrar linha é sempre melhor que cortar.
+ */
+.pp-blocos .pp-bloco:not(.pp-bloco--largo) .pp-bloco-nota { white-space: normal; }
+
+.pp-bloco--piso { background: var(--alerta-tint); }
+.pp-bloco--piso .pp-bloco-rotulo, .pp-bloco--piso .pp-bloco-valor { color: var(--alerta); }
+.pp-bloco--meta.sem-ok { background: var(--positivo-tint); }
+.pp-bloco--meta.sem-ok .pp-bloco-rotulo, .pp-bloco--meta.sem-ok .pp-bloco-valor { color: var(--positivo); }
+
+/* ---- cobertura: em mãos x ainda devo ---- */
+.mes-cobertura {
+  display: flex; flex-direction: column; gap: .35rem;
+  border: 1px solid var(--borda-suave); border-radius: var(--r-md);
+  padding: .7rem .8rem; background: var(--superficie-2);
+}
+.mc-linha {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: .6rem; font-size: .82rem; color: var(--ink-2);
+}
+.mc-linha .num { font-weight: 700; color: var(--ink); white-space: nowrap; }
+.mc-linha--forte {
+  border-top: 1px dashed var(--borda); padding-top: .4rem; margin-top: .1rem; font-weight: 700;
+}
+.mc-linha--forte span:first-child { display: inline-flex; align-items: center; gap: .3rem; }
+.mc-linha--forte svg { width: .95rem; height: .95rem; }
+.mes-cobertura.sem-critico .mc-linha--forte,
+.mes-cobertura.sem-critico .mc-linha--forte .num { color: var(--negativo); }
+.mes-cobertura.sem-ok .mc-linha--forte,
+.mes-cobertura.sem-ok .mc-linha--forte .num { color: var(--positivo); }
+
+.mes-ritmo, .mes-virada {
+  display: flex; align-items: flex-start; gap: .4rem;
+  font-size: .82rem; line-height: 1.45; color: var(--ink-2);
+  background: var(--superficie-2); border-radius: var(--r-md); padding: .6rem .75rem;
+}
+.mes-ritmo svg, .mes-virada svg { width: 1rem; height: 1rem; flex-shrink: 0; margin-top: .12rem; }
+/*
+ * O texto é um item de flex e, sem `min-width: 0`, não encolhe abaixo do próprio min-content —
+ * a frase empurrava a PÁGINA inteira para o lado em 320px. Por isso ele vem num <span> próprio.
+ */
+.ms-texto { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.mes-ritmo strong, .mes-virada strong {
+  color: var(--ink); font-family: var(--mono); font-variant-numeric: tabular-nums;
+}
+.mes-virada.sem-ok { background: var(--positivo-tint); }
+
+.meta-acoes { display: flex; gap: .6rem; }
+.meta-acoes .botao {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center;
+  gap: .35rem; font-size: .85rem; padding-inline: .7rem; white-space: nowrap;
+}
+.meta-acoes svg { width: 1rem; height: 1rem; }
+
+/* ---- a escada do cofre ---- */
+.esc-lista { list-style: none; display: flex; flex-direction: column; gap: .5rem; margin: 0; padding: 0; }
+.esc {
+  display: flex; flex-direction: column; gap: .3rem;
+  border-left: 3px solid var(--borda); padding: .55rem 0 .55rem .7rem;
+}
+.esc--corrente {
+  border-left-color: var(--accent); background: var(--accent-tint);
+  border-radius: 0 var(--r-md) var(--r-md) 0; padding-right: .6rem;
+}
+.esc--encerrado { border-left-color: var(--ink-3); }
+.esc--futuro { border-left-color: var(--borda); opacity: .88; }
+
+.esc-topo { display: flex; align-items: baseline; gap: .45rem; }
+.esc-mes {
+  font-weight: 780; text-transform: uppercase; letter-spacing: .02em;
+  font-size: .82rem; color: var(--ink);
+}
+.esc-selo { font-size: .66rem; font-weight: 650; text-transform: uppercase; letter-spacing: .03em; }
+.esc-acum {
+  margin-left: auto; font-family: var(--mono); font-variant-numeric: tabular-nums;
+  font-weight: 780; font-size: clamp(.82rem, 3.4vw, 1rem); letter-spacing: -.02em;
+  color: var(--ink); white-space: nowrap;
+}
+.esc-baixo {
+  display: flex; align-items: baseline; gap: .3rem; flex-wrap: wrap;
+  font-size: .74rem; color: var(--ink-3);
+}
+.esc-parte { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.esc-parte--fraca { font-family: var(--sans); font-style: italic; }
+.esc-op { opacity: .7; }
+.esc-delta {
+  margin-left: auto; font-family: var(--mono); font-variant-numeric: tabular-nums;
+  font-weight: 700; white-space: nowrap;
+}
+.esc-nota { display: flex; align-items: center; gap: .3rem; font-size: .72rem; color: var(--ink-3); }
+.esc-nota svg { width: .85rem; height: .85rem; }
+.esc-nota--alerta { color: var(--alerta); }
+.esc-nota--ok { color: var(--positivo); }
+.esc-nota--ruim { color: var(--negativo); }
+.esc-legenda {
+  display: flex; align-items: center; gap: .35rem; flex-wrap: wrap;
+  font-size: .73rem; color: var(--ink-3); margin: 0;
+}
+.esc-legenda svg { width: .9rem; height: .9rem; }
+.leg-amostra { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.leg-amostra--cheia { background: var(--accent); }
+.leg-amostra--vazia { background: color-mix(in srgb, var(--accent) 30%, transparent); margin-left: .5rem; }
+
+/* ---- assistente de criação ---- */
+.atalho-total { display: flex; gap: .5rem; }
+.atalho-total input { flex: 1; min-width: 0; }
+.atalho-total .botao { white-space: nowrap; }
+
+.meses-escolha {
+  display: flex; flex-direction: column; gap: .3rem;
+  max-height: 290px; overflow-y: auto;
+  border: 1px solid var(--borda); border-radius: var(--r-md); padding: .5rem;
+  background: var(--superficie-2);
+}
+.mes-linha { display: flex; align-items: center; gap: .5rem; padding: .3rem .35rem; border-radius: var(--r-sm); }
+.mes-linha.marcado { background: var(--accent-tint); }
+.mes-check { display: flex; align-items: center; gap: .45rem; flex: 1; min-width: 0; cursor: pointer; font-size: .85rem; }
+.mes-check input { width: 1.05rem; height: 1.05rem; accent-color: var(--accent); flex-shrink: 0; }
+.mes-check span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mes-check em { font-style: normal; color: var(--ink-3); font-size: .78rem; }
+/*
+ * ATENÇÃO à especificidade: `.campo input` (0,1,1) manda `width: 100%` e vence um `.mes-alvo`
+ * simples (0,1,0). O campo esticava para a largura toda e ficava POR CIMA da caixa de marcar —
+ * o toque no checkbox era engolido pelo campo de valor. Por isso o seletor com dois níveis.
+ */
+.meses-escolha .mes-alvo {
+  width: 108px; flex: 0 0 108px; text-align: right;
+  font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: .85rem;
+}
+.meses-escolha .mes-alvo:disabled { opacity: .4; }
+
+.meta-previa {
+  display: flex; flex-direction: column; gap: .3rem;
+  border: 1px dashed var(--borda); border-radius: var(--r-md); padding: .7rem .8rem;
+}
+.prev-linha {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: .6rem; font-size: .82rem; color: var(--ink-2);
+}
+.prev-linha .num { font-weight: 700; color: var(--ink); white-space: nowrap; }
+.prev-linha--forte { border-top: 1px dashed var(--borda); padding-top: .4rem; font-weight: 700; }
+
+/* 5 abas cabem em 320px, mas com folga menor: o rótulo encolhe antes do ícone */
+@media (max-width: 380px) {
+  .tab-item { font-size: .62rem; gap: .12rem; }
+  .tab-item svg { width: 1.2rem; height: 1.2rem; }
+}
+@media (max-width: 360px) {
+  .meses-escolha .mes-alvo { width: 88px; flex-basis: 88px; }
+  .meta-acoes { flex-direction: column; }
+}

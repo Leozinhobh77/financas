@@ -9,7 +9,7 @@
   var CATEGORIAS_PADRAO = ['casa', 'cartão', 'transporte', 'saúde', 'lazer', 'mercado', 'outros'];
 
   function estadoVazio() {
-    return { contas: [], categorias: CATEGORIAS_PADRAO.slice(), config: { tema: 'sistema' } };
+    return { contas: [], metas: [], categorias: CATEGORIAS_PADRAO.slice(), config: { tema: 'sistema' } };
   }
 
   function ler() {
@@ -18,6 +18,9 @@
       if (!bruto) return estadoVazio();
       var dado = JSON.parse(bruto);
       if (!dado.contas) dado.contas = [];
+      // Migracao: backup gerado antes das Metas nao tem o campo. Sem este default, qualquer
+      // leitura de metas quebraria ao restaurar um backup antigo.
+      if (!dado.metas) dado.metas = [];
       if (!dado.categorias) dado.categorias = CATEGORIAS_PADRAO.slice();
       if (!dado.config) dado.config = { tema: 'sistema' };
       return dado;
@@ -72,6 +75,76 @@
     salvar(estado);
   }
 
+  // ---------------------------------------------------------------- METAS
+  function listarMetas() { return ler().metas; }
+
+  function obterMeta(id) {
+    return ler().metas.filter(function (m) { return m.id === id; })[0] || null;
+  }
+
+  function adicionarMeta(meta) {
+    var estado = ler();
+    estado.metas.push(meta);
+    salvar(estado);
+    return meta;
+  }
+
+  function atualizarMeta(id, mudancas) {
+    var estado = ler();
+    var alvo = null;
+    estado.metas = estado.metas.map(function (m) {
+      if (m.id === id) { alvo = Object.assign({}, m, mudancas); return alvo; }
+      return m;
+    });
+    salvar(estado);
+    return alvo;
+  }
+
+  /**
+   * D007.8 — remover a meta NAO mexe nas contas. Contas sao a fonte da verdade e existem
+   * independentemente de qualquer meta; a meta so as LE.
+   */
+  function removerMeta(id) {
+    var estado = ler();
+    estado.metas = estado.metas.filter(function (m) { return m.id !== id; });
+    salvar(estado);
+  }
+
+  function adicionarMovimento(metaId, movimento) {
+    var estado = ler();
+    estado.metas = estado.metas.map(function (m) {
+      if (m.id !== metaId) return m;
+      var copia = Object.assign({}, m);
+      copia.movimentos = (m.movimentos || []).concat([movimento]);
+      return copia;
+    });
+    salvar(estado);
+    return movimento;
+  }
+
+  function removerMovimento(metaId, movimentoId) {
+    var estado = ler();
+    estado.metas = estado.metas.map(function (m) {
+      if (m.id !== metaId) return m;
+      var copia = Object.assign({}, m);
+      copia.movimentos = (m.movimentos || []).filter(function (mv) { return mv.id !== movimentoId; });
+      return copia;
+    });
+    salvar(estado);
+  }
+
+  /** Remove os movimentos ligados a uma conta — usado ao desfazer pagamento (RN018). */
+  function removerMovimentosDaConta(metaId, contaId) {
+    var estado = ler();
+    estado.metas = estado.metas.map(function (m) {
+      if (m.id !== metaId) return m;
+      var copia = Object.assign({}, m);
+      copia.movimentos = (m.movimentos || []).filter(function (mv) { return mv.contaId !== contaId; });
+      return copia;
+    });
+    salvar(estado);
+  }
+
   function listarCategorias() { return ler().categorias; }
 
   function adicionarCategoria(nome) {
@@ -109,6 +182,14 @@
     atualizarConta: atualizarConta,
     removerConta: removerConta,
     removerGrupo: removerGrupo,
+    listarMetas: listarMetas,
+    obterMeta: obterMeta,
+    adicionarMeta: adicionarMeta,
+    atualizarMeta: atualizarMeta,
+    removerMeta: removerMeta,
+    adicionarMovimento: adicionarMovimento,
+    removerMovimento: removerMovimento,
+    removerMovimentosDaConta: removerMovimentosDaConta,
     listarCategorias: listarCategorias,
     adicionarCategoria: adicionarCategoria,
     getConfig: getConfig,
