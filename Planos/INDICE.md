@@ -7,7 +7,7 @@ O **mais novo fica sempre no topo** de cada seção.
 
 | ID | Plano | Status | Progresso | Criado | Atualizado |
 |----|-------|--------|-----------|--------|------------|
-| [0005](0005-2026-07-27-metas.md) | Metas — campanhas de vários meses (caixinha, sobra, cofre) | 🚧 Em andamento | 22 de 34 (65%) | 2026-07-27 | 2026-07-27 |
+| [0005](0005-2026-07-27-metas.md) | Metas — campanhas de vários meses (caixinha, sobra, cofre) | 🚧 Em andamento | 22 de 35 (63%) | 2026-07-27 | 2026-07-27 |
 
 ## ✅ Concluídos / Arquivados
 
