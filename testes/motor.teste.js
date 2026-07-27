@@ -651,6 +651,112 @@ teste('semanasComResto: marca só as semanas já passadas que ficaram com pendê
 });
 
 // ============================================================
+secao('RN009 — Painel do período (total / pago / falta / meta)');
+// ============================================================
+
+function cenarioPainel() {
+  return [
+    contaFixa('pagar', 'Aluguel', 'casa', 1500, '2026-07-05', 'pago'),
+    contaFixa('pagar', 'Água', 'casa', 100, '2026-07-10', 'pago'),
+    contaFixa('pagar', 'TV', 'cartão', 300, '2026-07-15', 'pendente'),
+    contaFixa('pagar', 'Uber', 'transporte', 50, '2026-07-28', 'pendente'),
+    contaFixa('receber', 'Salário', 'trabalho', 4000, '2026-07-05', 'pago'),
+    contaFixa('receber', 'Freela', 'trabalho', 800, '2026-07-30', 'pendente')
+  ];
+}
+
+teste('RN009-1: resumo do período quebra total / pago / falta corretamente', function () {
+  var r = Analise.resumoDoPeriodo(cenarioPainel(), '2026-07-01', '2026-07-31', 'pagar', '2026-07-20');
+  assert.strictEqual(r.total, 1950);
+  assert.strictEqual(r.pago, 1600);
+  assert.strictEqual(r.falta, 350);
+  assert.strictEqual(r.qtd, 4);
+  assert.strictEqual(r.qtdPaga, 2);
+  assert.ok(Math.abs(r.progresso - 1600 / 1950) < 0.0001);
+});
+
+teste('RN009-2: o painel NÃO é filtrado por status — total sempre inclui pagas e pendentes', function () {
+  // resumoDoPeriodo não aceita status de propósito; se recebesse, o total sumiria ao filtrar
+  var r = Analise.resumoDoPeriodo(cenarioPainel(), '2026-07-01', '2026-07-31', 'pagar', '2026-07-20');
+  assert.strictEqual(r.total, r.pago + r.falta, 'total tem que ser pago + falta');
+});
+
+teste('RN009-3: meta/dia se adapta a um período de SEMANA', function () {
+  var lista = [contaFixa('pagar', 'X', 'outros', 700, '2026-07-10', 'pendente')];
+  var r = Analise.resumoDoPeriodo(lista, '2026-07-06', '2026-07-12', 'pagar', '2026-07-06');
+  var m = Analise.metaDoPeriodo(r, '2026-07-06');
+  assert.strictEqual(m.dias, 7);
+  assert.strictEqual(Math.round(m.meta), 100);   // 700/7
+});
+
+teste('RN009-4: meta/dia se adapta a período PERSONALIZADO de 10 dias', function () {
+  var lista = [contaFixa('pagar', 'X', 'outros', 1000, '2026-07-15', 'pendente')];
+  var r = Analise.resumoDoPeriodo(lista, '2026-07-11', '2026-07-20', 'pagar', '2026-07-11');
+  var m = Analise.metaDoPeriodo(r, '2026-07-11');
+  assert.strictEqual(m.dias, 10);
+  assert.strictEqual(m.meta, 100);
+});
+
+teste('RN009-5: período ENCERRADO não tem meta — devolve encerrado:true', function () {
+  var lista = [contaFixa('pagar', 'Junho', 'outros', 500, '2026-06-10', 'pendente')];
+  var r = Analise.resumoDoPeriodo(lista, '2026-06-01', '2026-06-30', 'pagar', '2026-07-20');
+  var m = Analise.metaDoPeriodo(r, '2026-07-20');
+  assert.strictEqual(m.encerrado, true);
+  assert.strictEqual(m.meta, 0);
+  assert.strictEqual(m.dias, 0);
+  assert.strictEqual(r.falta, 500, 'o que ficou pendente continua sendo reportado');
+  assert.strictEqual(m.semaforo, 'critico', 'encerrado com pendência é crítico');
+});
+
+teste('RN009-6: período encerrado e totalmente pago -> semáforo ok', function () {
+  var lista = [contaFixa('pagar', 'Junho', 'outros', 500, '2026-06-10', 'pago')];
+  var r = Analise.resumoDoPeriodo(lista, '2026-06-01', '2026-06-30', 'pagar', '2026-07-20');
+  var m = Analise.metaDoPeriodo(r, '2026-07-20');
+  assert.strictEqual(m.encerrado, true);
+  assert.strictEqual(m.semaforo, 'ok');
+});
+
+teste('RN009-7: período FUTURO usa a duração inteira (ainda não começou)', function () {
+  var lista = [contaFixa('pagar', 'Agosto', 'outros', 3100, '2026-08-15', 'pendente')];
+  var r = Analise.resumoDoPeriodo(lista, '2026-08-01', '2026-08-31', 'pagar', '2026-07-20');
+  var m = Analise.metaDoPeriodo(r, '2026-07-20');
+  assert.strictEqual(m.aindaNaoComecou, true);
+  assert.strictEqual(m.dias, 31);
+  assert.strictEqual(Math.round(m.meta), 100);
+});
+
+teste('RN009-8: filtrar por CATEGORIA muda o painel (lista já vem filtrada)', function () {
+  var soCasa = cenarioPainel().filter(function (c) { return c.categoria === 'casa'; });
+  var r = Analise.resumoDoPeriodo(soCasa, '2026-07-01', '2026-07-31', 'pagar', '2026-07-20');
+  assert.strictEqual(r.total, 1600);
+  assert.strictEqual(r.falta, 0, 'as duas de casa estão pagas');
+});
+
+teste('RN009-9: variante "receber" — total previsto, já recebido, falta receber', function () {
+  var r = Analise.resumoDoPeriodo(cenarioPainel(), '2026-07-01', '2026-07-31', 'receber', '2026-07-20');
+  assert.strictEqual(r.total, 4800);
+  assert.strictEqual(r.pago, 4000);
+  assert.strictEqual(r.falta, 800);
+});
+
+teste('RN009-10: período sem conta nenhuma não gera NaN nem divisão por zero', function () {
+  var r = Analise.resumoDoPeriodo([], '2026-07-01', '2026-07-31', 'pagar', '2026-07-20');
+  var m = Analise.metaDoPeriodo(r, '2026-07-20');
+  assert.strictEqual(r.total, 0);
+  assert.strictEqual(r.progresso, 0);
+  assert.strictEqual(m.meta, 0);
+  assert.ok(!isNaN(m.meta) && !isNaN(m.ideal) && isFinite(m.meta));
+});
+
+teste('RN009-11: último dia do período não divide por zero', function () {
+  var lista = [contaFixa('pagar', 'X', 'outros', 250, '2026-07-31', 'pendente')];
+  var r = Analise.resumoDoPeriodo(lista, '2026-07-01', '2026-07-31', 'pagar', '2026-07-31');
+  var m = Analise.metaDoPeriodo(r, '2026-07-31');
+  assert.strictEqual(m.dias, 1);
+  assert.strictEqual(m.meta, 250);
+});
+
+// ============================================================
 process.stdout.write('\n' + '='.repeat(60) + '\n');
 if (falhas.length === 0) {
   process.stdout.write('TUDO PASSOU — ' + total + ' de ' + total + ' testes\n');

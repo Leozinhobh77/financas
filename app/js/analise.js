@@ -311,7 +311,73 @@
     });
   }
 
+  /**
+   * Resumo de um INTERVALO QUALQUER (mes, semana, personalizado) — generalizacao de
+   * resumoDoMes, usada pelo painel das telas de lista. Recebe a lista JA filtrada por
+   * categoria/busca; nunca deve receber filtro de status, porque e justamente a quebra por
+   * status que ela produz (ver RN009).
+   */
+  function resumoDoPeriodo(lista, inicio, fim, tipo, hojeISO) {
+    hojeISO = hojeISO || Datas.hoje();
+    var doPeriodo = noPeriodo(lista, inicio, fim).filter(function (c) {
+      return !tipo || c.tipo === tipo;
+    });
+
+    var pagas = doPeriodo.filter(function (c) { return c.status === 'pago'; });
+    var pendentes = doPeriodo.filter(function (c) { return c.status === 'pendente'; });
+    var atrasadas = pendentes.filter(function (c) { return Contas.estaAtrasada(c, hojeISO); });
+
+    var total = somar(doPeriodo);
+    var pago = somar(pagas);
+
+    return {
+      inicio: inicio, fim: fim, tipo: tipo,
+      total: total,
+      pago: pago,
+      falta: somar(pendentes),
+      atrasado: somar(atrasadas),
+      progresso: total > 0 ? (pago / total) : 0,
+      qtd: doPeriodo.length,
+      qtdPaga: pagas.length,
+      qtdPendente: pendentes.length,
+      qtdAtrasada: atrasadas.length
+    };
+  }
+
+  /**
+   * Meta por dia de um INTERVALO QUALQUER. Se o periodo ja terminou (fim < hoje), nao existe
+   * "dias restantes" — devolve `encerrado: true` e a interface troca a meta por "Ficou
+   * pendente". Se o periodo ainda nem comecou, usa a duracao inteira dele.
+   */
+  function metaDoPeriodo(resumo, hojeISO) {
+    hojeISO = hojeISO || Datas.hoje();
+
+    var duracao = Math.max(1, diasAte(resumo.fim, resumo.inicio) + 1);
+    var encerrado = Datas.compararISO(resumo.fim, hojeISO) < 0;
+    var aindaNaoComecou = Datas.compararISO(hojeISO, resumo.inicio) < 0;
+
+    var dias;
+    if (encerrado) dias = 0;
+    else if (aindaNaoComecou) dias = duracao;
+    else dias = diasRestantesAte(resumo.fim, hojeISO);
+
+    var meta = encerrado ? 0 : (resumo.falta / dias);
+    var ideal = resumo.total / duracao;
+
+    return {
+      meta: meta,
+      dias: dias,
+      duracao: duracao,
+      encerrado: encerrado,
+      aindaNaoComecou: aindaNaoComecou,
+      ideal: ideal,
+      semaforo: encerrado ? (resumo.falta > 0 ? 'critico' : 'ok') : semaforoDoRitmo(meta, ideal)
+    };
+  }
+
   var Analise = {
+    resumoDoPeriodo: resumoDoPeriodo,
+    metaDoPeriodo: metaDoPeriodo,
     diasRestantesAte: diasRestantesAte,
     metaPorDia: metaPorDia,
     ritmoDaSemana: ritmoDaSemana,

@@ -16,6 +16,7 @@ _O arquivo `.md` fica na pasta `Concluídos/`._
 
 | ID | Plano | Status | Progresso | Concluído em |
 |----|-------|--------|-----------|--------------|
+| [0004](Concluídos/0004-2026-07-27-painel-do-periodo-nas-listas.md) | Painel do período nas telas de contas | ✔️ Concluído | 7 de 7 (100%) | 2026-07-27 |
 | [0003](Concluídos/0003-2026-07-26-meta-por-dia-e-ritmo-da-semana.md) | Meta por dia + Ritmo da semana + "Veio de antes" | ✔️ Concluído | 7 de 7 (100%) | 2026-07-26 |
 | [0002](Concluídos/0002-2026-07-26-dashboard-avancado-e-repaginada.md) | Dashboard avançado + repaginada visual completa | ✔️ Concluído | 8 de 8 (100%) | 2026-07-26 |
 | [0001](Concluídos/0001-2026-07-26-mvp-contas-a-pagar-receber.md) | MVP — Contas a pagar e a receber | ✔️ Concluído | 9 de 9 (100%) | 2026-07-26 |

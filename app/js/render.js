@@ -287,6 +287,102 @@
     );
   }
 
+  /**
+   * Painel do período nas telas de lista. Mostra o panorama do escopo (período + categoria +
+   * busca) SEM sofrer o filtro de status — é ele quem exibe a quebra pago/falta, então
+   * filtrá-lo por status seria redundante e faria o total sumir. Ver RN009.
+   */
+  function painelPeriodo(resumo, meta, escopo, tipo, nomePeriodo) {
+    var ehReceber = tipo === 'receber';
+
+    var rotuloPrincipal = ehReceber ? 'Falta receber' : 'Falta pagar';
+    var valorPrincipal = resumo.falta;
+    var pctPago = Math.round(resumo.progresso * 100);
+    var rotuloPago = ehReceber ? 'Já recebido' : 'Já pago';
+    // acompanha o período filtrado: dizer "total do mês" numa visão de semana é mentira
+    var rotuloTotal = ehReceber ? 'Total previsto' : ('Total ' + (nomePeriodo || 'do período'));
+
+    // terceiro bloco: meta/dia (pagar, período aberto) · ficou pendente (encerrado) · nada (receber)
+    var terceiroBloco;
+    if (ehReceber) {
+      terceiroBloco =
+        '<div class="pp-bloco">' +
+          '<span class="pp-bloco-rotulo">Atrasado</span>' +
+          '<span class="pp-bloco-valor' + (resumo.atrasado > 0 ? ' v-negativo' : '') + '">' +
+            Formatar.dinheiro(resumo.atrasado) + '</span>' +
+          '<span class="pp-bloco-nota">' + resumo.qtdAtrasada + ' conta(s)</span>' +
+        '</div>';
+    } else if (meta.encerrado) {
+      terceiroBloco =
+        '<div class="pp-bloco">' +
+          '<span class="pp-bloco-rotulo">Ficou pendente</span>' +
+          '<span class="pp-bloco-valor' + (resumo.falta > 0 ? ' v-negativo' : ' v-positivo') + '">' +
+            Formatar.dinheiro(resumo.falta) + '</span>' +
+          '<span class="pp-bloco-nota">período encerrado</span>' +
+        '</div>';
+    } else {
+      terceiroBloco =
+        '<div class="pp-bloco pp-bloco--meta sem-' + meta.semaforo + '">' +
+          '<span class="pp-bloco-rotulo">' + Icones.get('raio') + 'Meta / dia</span>' +
+          '<span class="pp-bloco-valor">' + Formatar.dinheiro(meta.meta) + '</span>' +
+          '<span class="pp-bloco-nota">' + meta.dias + (meta.dias === 1 ? ' dia restante' : ' dias restantes') + '</span>' +
+        '</div>';
+    }
+
+    return (
+      '<section class="pp">' +
+        '<div class="pp-cabeca">' +
+          '<span class="pp-escopo">' + esc(escopo) + '</span>' +
+          '<span class="pp-qtd">' + resumo.qtd + (resumo.qtd === 1 ? ' conta' : ' contas') + '</span>' +
+        '</div>' +
+
+        '<div class="pp-principal">' +
+          '<span class="pp-principal-rotulo">' + rotuloPrincipal + '</span>' +
+          '<span class="pp-principal-valor' + (valorPrincipal > 0 ? '' : ' v-positivo') + '">' +
+            Formatar.dinheiro(valorPrincipal) + '</span>' +
+        '</div>' +
+
+        (resumo.total > 0
+          ? Graficos.barraProgresso(resumo.progresso) +
+            '<div class="pp-progresso-nota">' +
+              '<span>' + pctPago + (ehReceber ? '% recebido' : '% pago') + '</span>' +
+              '<span>' + resumo.qtdPaga + ' de ' + resumo.qtd + ' contas</span>' +
+            '</div>'
+          : '') +
+
+        '<div class="pp-blocos">' +
+          '<div class="pp-bloco">' +
+            '<span class="pp-bloco-rotulo">' + rotuloTotal + '</span>' +
+            '<span class="pp-bloco-valor">' + Formatar.dinheiro(resumo.total) + '</span>' +
+            // o cabeçalho já diz a quantidade — aqui vale a informação que ele não tem
+            '<span class="pp-bloco-nota">' +
+              (resumo.qtdAtrasada > 0
+                ? resumo.qtdAtrasada + ' atrasada(s)'
+                : (resumo.qtdPendente > 0 ? resumo.qtdPendente + ' em aberto' : 'tudo resolvido')) +
+            '</span>' +
+          '</div>' +
+          '<div class="pp-bloco">' +
+            '<span class="pp-bloco-rotulo">' + rotuloPago + '</span>' +
+            '<span class="pp-bloco-valor v-positivo">' + Formatar.dinheiro(resumo.pago) + '</span>' +
+            '<span class="pp-bloco-nota">' + resumo.qtdPaga + ' conta(s)</span>' +
+          '</div>' +
+          terceiroBloco +
+        '</div>' +
+      '</section>'
+    );
+  }
+
+  /** Linha discreta acima da lista: o que a lista realmente está mostrando agora. */
+  function linhaResultado(qtd, valor, temFiltro) {
+    return (
+      '<div class="resultado-filtro">' +
+        '<span>' + qtd + (qtd === 1 ? ' conta nesta lista' : ' contas nesta lista') +
+          (temFiltro ? ' <em>(filtrado)</em>' : '') + '</span>' +
+        '<span class="num">' + Formatar.dinheiro(valor) + '</span>' +
+      '</div>'
+    );
+  }
+
   function miniCard(rotulo, icone, valor, nota, modificador) {
     return (
       '<div class="mini' + (modificador ? ' mini--' + modificador : '') + '">' +
@@ -318,6 +414,8 @@
     faixaMeta: faixaMeta,
     cardRitmoSemana: cardRitmoSemana,
     blocoVeioDeAntes: blocoVeioDeAntes,
+    painelPeriodo: painelPeriodo,
+    linhaResultado: linhaResultado,
     miniCard: miniCard,
     catPill: catPill
   };

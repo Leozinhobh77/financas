@@ -231,7 +231,36 @@ with sync_playwright() as p:
     checar("Aluguel" not in texto_pagas, "FILTRO 'Pagas': mostra conta pendente (Aluguel)")
     checar(page.locator('.chip[data-valor="paga"] .chip-contador').count() > 0,
            "FILTRO 'Pagas': chip sem contador (indica contagem zerada)")
-    checar("total já pago" in texto_pagas.lower(), "FILTRO 'Pagas': rótulo do total não mudou")
+
+    # RN009: o PAINEL não pode mudar com o filtro de status — só a lista muda.
+    painel_com_pagas = page.locator(".pp-principal-valor").inner_text()
+    total_com_pagas = page.locator(".pp-bloco-valor").first.inner_text()
+    lista_com_pagas = page.locator(".resultado-filtro .num").inner_text()
+
+    page.click('.chip[data-valor="todos"]')
+    page.wait_for_timeout(400)
+    painel_com_todas = page.locator(".pp-principal-valor").inner_text()
+    total_com_todas = page.locator(".pp-bloco-valor").first.inner_text()
+    lista_com_todas = page.locator(".resultado-filtro .num").inner_text()
+
+    checar(painel_com_pagas == painel_com_todas,
+           f"RN009: 'Falta pagar' do painel mudou com o filtro de status ({painel_com_pagas} vs {painel_com_todas})")
+    checar(total_com_pagas == total_com_todas,
+           f"RN009: 'Total do mês' do painel mudou com o filtro de status ({total_com_pagas} vs {total_com_todas})")
+    checar(lista_com_pagas != lista_com_todas,
+           "RN009: a linha de resultado da lista NÃO mudou com o filtro (deveria mudar)")
+
+    # o painel existe e traz os quatro números
+    checar(page.locator(".pp").count() > 0, "PAINEL: bloco do período não aparece")
+    txt_painel = page.locator(".pp").inner_text().lower()
+    checar("falta pagar" in txt_painel, "PAINEL: rótulo 'Falta pagar' ausente")
+    checar("total do mês" in txt_painel, "PAINEL: bloco 'Total do mês' ausente")
+    checar("já pago" in txt_painel, "PAINEL: bloco 'Já pago' ausente")
+    checar("meta / dia" in txt_painel or "ficou pendente" in txt_painel,
+           "PAINEL: terceiro bloco (meta/dia ou ficou pendente) ausente")
+
+    page.click('.chip[data-valor="paga"]')
+    page.wait_for_timeout(300)
 
     # e os outros status continuam corretos
     page.click('.chip[data-valor="pendente"]')

@@ -493,13 +493,79 @@ main { max-width: 900px; margin: 0 auto; padding: 1.15rem clamp(.9rem, 4vw, 2rem
 .chip.ativo { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .chip-contador { font-family: var(--mono); font-size: .72rem; opacity: .75; }
 
-.resumo-filtro {
-  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
-  padding: .85rem 1rem; background: var(--superficie-2); border-radius: var(--r-lg);
+/* ============ PAINEL DO PERÍODO (telas de lista) ============ */
+.pp {
+  background: var(--superficie); border: 1px solid var(--borda);
+  border-radius: var(--r-xl); padding: 1.1rem 1.15rem;
+  box-shadow: var(--sombra-2);
+  display: flex; flex-direction: column; gap: .55rem;
 }
-.resumo-filtro .rotulo { font-size: .78rem; font-weight: 700; color: var(--ink-3); text-transform: uppercase; letter-spacing: .05em; }
-.resumo-filtro .qtd { font-size: .78rem; color: var(--ink-3); }
-.resumo-filtro .valor { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 1.4rem; font-weight: 800; letter-spacing: -.03em; }
+.pp-cabeca {
+  display: flex; align-items: baseline; justify-content: space-between; gap: .8rem;
+}
+.pp-escopo {
+  font-size: .74rem; font-weight: 780; color: var(--ink-3);
+  text-transform: uppercase; letter-spacing: .08em;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pp-qtd { font-size: .74rem; color: var(--ink-3); white-space: nowrap; }
+
+.pp-principal { display: flex; flex-direction: column; gap: .1rem; }
+.pp-principal-rotulo { font-size: .82rem; font-weight: 650; color: var(--ink-2); }
+.pp-principal-valor {
+  font-family: var(--mono); font-variant-numeric: tabular-nums;
+  font-size: clamp(1.9rem, 8vw, 2.35rem); font-weight: 800;
+  letter-spacing: -.04em; line-height: 1.05; white-space: nowrap;
+}
+
+.pp-progresso-nota {
+  display: flex; align-items: baseline; justify-content: space-between; gap: .8rem;
+  font-size: .76rem; color: var(--ink-3); margin-top: -.15rem;
+}
+
+.pp-blocos {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem;
+  margin-top: .35rem;
+}
+.pp-bloco {
+  background: var(--superficie-2); border-radius: var(--r-md);
+  padding: .6rem .65rem; display: flex; flex-direction: column; gap: .15rem; min-width: 0;
+}
+.pp-bloco-rotulo {
+  display: inline-flex; align-items: center; gap: .25rem;
+  font-size: .66rem; font-weight: 750; color: var(--ink-3);
+  text-transform: uppercase; letter-spacing: .05em;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pp-bloco-rotulo svg { width: .82rem; height: .82rem; flex-shrink: 0; }
+.pp-bloco-valor {
+  font-family: var(--mono); font-variant-numeric: tabular-nums;
+  font-size: .95rem; font-weight: 780; letter-spacing: -.02em; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.pp-bloco-nota { font-size: .66rem; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* o bloco da meta carrega o semáforo — é o número que exige ação */
+.pp-bloco--meta { background: var(--accent-tint); }
+.pp-bloco--meta .pp-bloco-rotulo, .pp-bloco--meta .pp-bloco-valor { color: var(--accent); }
+.pp-bloco--meta.sem-atencao { background: var(--alerta-tint); }
+.pp-bloco--meta.sem-atencao .pp-bloco-rotulo, .pp-bloco--meta.sem-atencao .pp-bloco-valor { color: var(--alerta); }
+.pp-bloco--meta.sem-critico { background: var(--negativo-tint); }
+.pp-bloco--meta.sem-critico .pp-bloco-rotulo, .pp-bloco--meta.sem-critico .pp-bloco-valor { color: var(--negativo); }
+
+/* linha discreta: o que a LISTA está mostrando agora (muda com todos os filtros) */
+.resultado-filtro {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 1rem;
+  padding: .1rem .25rem; font-size: .82rem; color: var(--ink-3);
+  border-bottom: 1px solid var(--borda-suave); padding-bottom: .6rem;
+}
+.resultado-filtro em { font-style: normal; color: var(--accent); font-weight: 650; }
+.resultado-filtro .num { font-weight: 750; color: var(--ink-2); }
+
+@media (max-width: 400px) {
+  .pp-blocos { grid-template-columns: 1fr 1fr; }
+  .pp-bloco--meta, .pp-blocos > .pp-bloco:last-child { grid-column: 1 / -1; }
+}
 
 /* ============ GRUPO DE SEMANA ============ */
 .grupo { display: flex; flex-direction: column; gap: .55rem; }

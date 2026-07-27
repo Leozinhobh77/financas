@@ -17,6 +17,7 @@
 | RN006 — Meta por dia (mês) | `testes/motor.teste.js` · casos `RN006-*` |
 | RN007 — Ritmo da semana com arrasto em cascata | `testes/motor.teste.js` · casos `RN007-*` |
 | RN008 — "Veio de antes" separado do mês corrente | `testes/motor.teste.js` · `pendenteDeMesesAnteriores` |
+| RN009 — Painel do período não responde ao filtro de status | `testes/motor.teste.js` · casos `RN009-*` + E2E |
 
 Meta: 100%. `/harness doctor` reprova regra sem teste em projeto T2+.
 
@@ -228,3 +229,53 @@ empurraria as contas do mês corrente para baixo na lista de urgências.
 **Teste:** `testes/motor.teste.js` · `pendenteDeMesesAnteriores` e
 `"Veio de antes" NÃO entra na meta do mês`
 **Procedência:** pedido explícito do usuário, na revisão do esboço.
+
+
+---
+
+### RN009 — O painel do período não responde ao filtro de status
+**Regra:** nas telas de lista (`pagar` e `receber`), o painel do topo mostra o panorama do
+**escopo** selecionado: total, já pago/recebido, falta, e meta por dia. Ele responde a
+**período, categoria e busca** — e **ignora o filtro de status** (Todas/Pendentes/Atrasadas/
+Pagas). Uma linha discreta logo acima da lista mostra, aí sim, o resultado de **todos** os
+filtros: `N contas nesta lista · R$ X`.
+
+**Por quê:** é o painel que exibe a quebra por status (pago × falta). Filtrá-lo por status
+seria redundante e, pior, faz o total do período desaparecer — era exatamente o problema
+relatado: ao clicar em "Pagas", o usuário perdia a noção do mês inteiro.
+
+**Comportamento por filtro:**
+
+| Filtro | Painel muda? |
+|---|---|
+| Período (mês, semana, personalizado) | ✅ sim — é o escopo |
+| Categoria | ✅ sim — analisando "casa", vê o panorama de casa |
+| Busca | ✅ sim |
+| Status | ❌ **não** |
+
+**Detalhes:**
+- **Meta por dia se adapta ao período**: mês → dias restantes do mês; semana → até domingo;
+  personalizado → dentro do intervalo escolhido. Mesma lógica da RN006 (hoje conta, piso 1).
+- **Período encerrado** (fim < hoje) não tem meta — o terceiro bloco vira **"Ficou pendente"**.
+- **Período futuro** usa a duração inteira do intervalo.
+- **`receber` tem variante própria**: Total previsto · Já recebido · Atrasado, **sem meta/dia**
+  (não se "arruma dinheiro" pra receber).
+- **O rótulo do total acompanha o período** — "Total do mês" / "da semana" / "do período".
+  Dizer "do mês" numa visão de semana seria falso.
+- **O painel continua visível com a lista vazia** — o panorama segue verdadeiro mesmo quando o
+  filtro específico não retorna nada.
+
+**Exemplos:**
+- Julho com 8 contas, 3 pagas. Filtro "Todas" → painel: falta R$ 1.841,20, total R$ 3.588,60;
+  lista: 8 contas · R$ 3.588,60
+- Mesmo mês, filtro "Pagas" → **painel idêntico**; lista: 3 contas · R$ 1.747,40
+- Mesmo mês, filtro "Pendentes" → **painel idêntico**; lista: 1 conta · R$ 642,30
+- Filtro categoria "casa" → painel muda: total R$ 1.718,30, escopo "Casa · Julho de 2026"
+
+**Teste:** `testes/motor.teste.js` · casos `RN009-*` (11 casos, incluindo período encerrado,
+futuro, semana, personalizado e vazio) + `testes/e2e/test_app_financas.py`, que compara os
+valores do painel antes e depois de trocar o status e exige que **não mudem**.
+
+**Procedência:** pedido do usuário — "caso eu filtre, o valor total também é filtrado; seria
+interessante continuar mostrando o valor total devido, mas mostrar o valor já pago, o que falta
+e a meta diária".

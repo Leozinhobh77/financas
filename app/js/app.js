@@ -255,6 +255,31 @@
     return copia.sort(function (a, b) { return Datas.compararISO(a.vencimento, b.vencimento); });
   }
 
+  /** Como o período se chama no rótulo "Total ___" ("do mês", "da semana", "do período"). */
+  function nomeDoPeriodo(periodo) {
+    if (periodo.tipo === 'semana-atual') return 'da semana';
+    if (periodo.tipo === 'personalizado') return 'do período';
+    return 'do mês';
+  }
+
+  /** Nome legível do período filtrado, para o cabeçalho do painel. */
+  function rotuloDoPeriodo(periodo, intervalo) {
+    var p = Datas.parseISO(intervalo.inicio);
+    var mesAno = Formatar.capitalizar(Datas.nomeMes(p.mes)) + ' de ' + p.ano;
+
+    switch (periodo.tipo) {
+      case 'semana-atual': {
+        var s = Datas.semanaDe(Datas.hoje());
+        return 'Semana ' + s.numero + ' · ' + Formatar.dataCurta(intervalo.inicio) +
+               '–' + Formatar.dataCurta(intervalo.fim);
+      }
+      case 'personalizado':
+        return Formatar.dataCurta(intervalo.inicio) + ' a ' + Formatar.dataCurta(intervalo.fim);
+      default:
+        return mesAno;
+    }
+  }
+
   function telaLista(tipo) {
     var hoje = Datas.hoje();
     var f = estado.filtro;
@@ -284,7 +309,22 @@
 
     var total = Filtros.total(filtradas);
     var titulo = tipo === 'pagar' ? 'Contas a pagar' : 'Contas a receber';
-    var rotuloTotal = f.status === 'paga' ? 'Total já pago' : 'Total do filtro';
+
+    // ---- painel do período (RN009) ----
+    // Usa a lista com período + categoria + busca aplicados, mas SEM o filtro de status: é o
+    // painel que mostra a quebra pago/falta, então filtrá-lo por status seria redundante e
+    // faria o total sumir ao clicar em "Pagas" — exatamente o problema que ele resolve.
+    var intervalo = Filtros.periodoParaIntervalo(f.periodo, hoje);
+    var paraPainel = Filtros.aplicar(doTipo,
+      { periodo: f.periodo, status: 'todos', categoria: f.categoria, tipo: tipo }, hoje);
+    var resumoP = Analise.resumoDoPeriodo(paraPainel, intervalo.inicio, intervalo.fim, tipo, hoje);
+    var metaP = Analise.metaDoPeriodo(resumoP, hoje);
+
+    var escopo = rotuloDoPeriodo(f.periodo, intervalo);
+    if (f.categoria !== 'todas') escopo = Formatar.capitalizar(f.categoria) + ' · ' + escopo;
+    if (busca) escopo = '"' + f.busca.trim() + '" · ' + escopo;
+
+    var temFiltroNaLista = (f.status !== 'todos') || (f.categoria !== 'todas') || !!busca;
 
     var corpo;
     var tipoPeriodo = f.periodo.tipo;
@@ -308,12 +348,9 @@
     elConteudo.innerHTML =
       '<div class="tela">' +
         '<div class="tela-cabeca"><h1 class="tela-titulo">' + titulo + '</h1></div>' +
+        Render.painelPeriodo(resumoP, metaP, escopo, tipo, nomeDoPeriodo(f.periodo)) +
         barraFiltros(tipo, contagens) +
-        '<div class="resumo-filtro">' +
-          '<div><div class="rotulo">' + rotuloTotal + '</div>' +
-            '<div class="qtd">' + filtradas.length + (filtradas.length === 1 ? ' conta' : ' contas') + '</div></div>' +
-          '<span class="valor">' + Formatar.dinheiro(total) + '</span>' +
-        '</div>' +
+        Render.linhaResultado(filtradas.length, total, temFiltroNaLista) +
         corpo +
       '</div>';
 
