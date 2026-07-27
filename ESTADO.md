@@ -7,13 +7,13 @@
 
 _Nenhum plano ativo._
 
-**Concluídos:** 4 plano(s) arquivado(s).
+**Concluídos:** 5 plano(s) arquivado(s).
 
 ## Últimos commits
 
-- 2026-07-27 chore: harness upgrade v1.1.2 -> v1.2.1 (só o manifesto)
-- 2026-07-27 chore: harness fix — ESTADO.md regenerado + fonte única restaurada
-- 2026-07-27 fix: valores cortados no painel — no máximo 2 colunas no celular
+- 2026-07-27 feat: inteligência e relatório da meta (fase 4) — plano 0005 concluído
+- 2026-07-27 feat: baixa cruzada entre a meta e Contas a Pagar (fase 3)
+- 2026-07-27 chore: corrige a contagem de tarefas do plano 0005 (35, nao 34)
 
 [ok] Working tree limpo na geracao.
 
