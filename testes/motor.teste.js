@@ -267,6 +267,43 @@ teste('aplicar: combina período + status + categoria + tipo', function () {
   assert.strictEqual(soPagarCasaJulho[0].descricao, 'Água');
 });
 
+teste('filtro por status: cada valor RETORNA as contas certas (afirma presença, não ausência)', function () {
+  // Regressão do bug do filtro "Pagas" (D004): a interface mandava 'pago' mas
+  // Contas.situacao() devolve 'paga' — nunca casava e a aba vinha vazia. O teste antigo só
+  // checava que a pendente NÃO aparecia, o que passa mesmo com a lista inteira vazia.
+  var lista = [
+    contaFixa('pagar', 'Paga1', 'casa', 100, '2026-07-05', 'pago'),
+    contaFixa('pagar', 'Paga2', 'casa', 200, '2026-07-10', 'pago'),
+    contaFixa('pagar', 'Atrasada', 'casa', 300, '2026-07-15', 'pendente'),
+    contaFixa('pagar', 'Futura', 'casa', 400, '2026-07-30', 'pendente')
+  ];
+  var base = { periodo: { tipo: 'mes-especifico', ano: 2026, mes: 7 }, categoria: 'todas', tipo: 'pagar' };
+  function nomes(status) {
+    return Filtros.aplicar(lista, Object.assign({}, base, { status: status }), '2026-07-26')
+      .map(function (c) { return c.descricao; }).sort();
+  }
+
+  assert.deepStrictEqual(nomes('todos'), ['Atrasada', 'Futura', 'Paga1', 'Paga2']);
+  assert.deepStrictEqual(nomes('paga'), ['Paga1', 'Paga2'], 'filtro "paga" deve TRAZER as pagas');
+  assert.deepStrictEqual(nomes('atrasada'), ['Atrasada']);
+  assert.deepStrictEqual(nomes('pendente'), ['Futura']);
+});
+
+teste('filtro por status: os valores aceitos são exatamente os que situacao() produz', function () {
+  // trava o contrato entre quem filtra e quem classifica — foi a divergência que causou D004
+  var amostras = [
+    contaFixa('pagar', 'A', 'casa', 10, '2026-07-05', 'pago'),
+    contaFixa('pagar', 'B', 'casa', 10, '2026-07-05', 'pendente'),
+    contaFixa('pagar', 'C', 'casa', 10, '2026-07-30', 'pendente')
+  ];
+  var produzidos = amostras.map(function (c) { return Contas.situacao(c, '2026-07-26'); });
+  produzidos.forEach(function (s) {
+    assert.ok(['paga', 'pendente', 'atrasada'].indexOf(s) !== -1,
+      'situacao() devolveu "' + s + '", fora do conjunto esperado');
+  });
+  assert.ok(produzidos.indexOf('paga') !== -1, 'o valor para conta paga é "paga" (não "pago")');
+});
+
 teste('total: soma os valores da lista filtrada', function () {
   var lista = [{ valor: 100 }, { valor: 50.5 }, { valor: 20 }];
   assert.strictEqual(Filtros.total(lista), 170.5);

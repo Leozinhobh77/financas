@@ -14,6 +14,7 @@
 
 | # | Decisão | Data | Status |
 |---|---|---|---|
+| D004 | Filtro de status usa os valores de `situacao()` (`paga`, não `pago`) | 2026-07-27 | Ativa |
 | D003 | `guarda.ps1` normaliza caminho e força UTF-8 (evita falso positivo em push de outro repo) | 2026-07-26 | Ativa |
 | D002 | Guarda contra duplicar recorrência ao desmarcar/remarcar paga | 2026-07-26 | Ativa |
 | D001 | Stack: HTML/CSS/JS vanilla, sem servidor, `localStorage` | 2026-07-26 | Ativa |
@@ -37,6 +38,28 @@ for acionada** (`docs/GOVERNANCA.md` §6).
 ---
 
 _(as decisões entram abaixo, mais nova primeiro)_
+
+### D004 — Filtro de status usa os valores que `situacao()` produz (2026-07-27)
+**Decisão:** os chips de filtro de status em `app/js/app.js` passam a usar `'paga'` (não
+`'pago'`), alinhados com o que `Contas.situacao()` devolve. Também os contadores dos chips e
+o rótulo "Total já pago".
+**Motivo:** havia uma divergência de uma letra entre quem filtra e quem classifica — a
+interface mandava `'pago'`, `situacao()` devolve `'paga'`, e `Filtros.aplicar` compara os dois
+diretamente. Resultado: a aba "Pagas" vinha **sempre vazia**, mesmo com contas pagas, e o chip
+aparecia sem contador. Os outros três status funcionavam porque as palavras coincidiam.
+**Por que corrigir na interface e não em `situacao()`:** `situacao()` é usada em todo o app
+(cor do card, ícone, texto "Pago em", classe CSS). Mudar o valor lá mexeria em vários pontos e
+criaria risco novo; mudar no chip toca um lugar só.
+**Procedência:** reportado pelo usuário usando o app no celular. Reproduzido antes de qualquer
+alteração: com 2 contas pagas, o filtro retornava 0. Confirmado que `Filtros.aplicar` com
+`status: 'paga'` retornava as 2 corretamente — o filtro nunca esteve quebrado, só era chamado
+com a palavra errada.
+**Falha de teste que permitiu o bug passar:** o teste E2E existente afirmava apenas que a conta
+pendente **não** aparecia no filtro "Pagas" — uma asserção de ausência, que passa mesmo com a
+lista inteira vazia. Substituído por asserção de **presença** (a conta paga tem que aparecer,
+o contador tem que existir), mais dois testes de motor travando o contrato entre `situacao()`
+e o filtro. A correção foi validada reintroduzindo o bug de propósito: o teste novo falha.
+**Relacionado:** RN004 (situação derivada, nunca gravada).
 
 ### D003 — `guarda.ps1` normaliza caminho e força UTF-8 no stdin (2026-07-26)
 **Decisão:** o hook `.claude/hooks/guarda.ps1` agora (1) resolve o diretório efetivo de um

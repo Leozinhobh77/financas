@@ -212,13 +212,37 @@ with sync_playwright() as p:
     texto_pos = page.locator("#conteudo").inner_text()
     checar("Freela" not in texto_pos, "MOBILE: Freela ainda aparece depois de excluída")
 
-    # --- filtro por status ---
+    # --- filtro por status (regressão D004: a aba "Pagas" vinha sempre vazia) ---
+    # O teste antigo só checava que a pendente NÃO aparecia — o que passa mesmo com a lista
+    # inteira vazia, e por isso não pegou o bug. Agora exige PRESENÇA da conta paga.
     page.click('.tabbar [data-rota="pagar"]')
     page.wait_for_timeout(300)
-    page.click('.chip[data-valor="pago"]')
+    page.select_option("#fSelPeriodo", "mes-especifico")
+    page.wait_for_timeout(200)
+    page.select_option("#fSelMes", "2026-7")
     page.wait_for_timeout(300)
+
+    page.click('.chip[data-valor="paga"]')
+    page.wait_for_timeout(400)
+    n_pagas = page.locator(".conta").count()
     texto_pagas = page.locator("#conteudo").inner_text()
-    checar("Aluguel" not in texto_pagas, "MOBILE: filtro 'Pagas' mostra conta pendente (Aluguel)")
+    checar(n_pagas > 0, "FILTRO 'Pagas': não mostrou NENHUMA conta, mas existem contas pagas")
+    checar("Água" in texto_pagas, "FILTRO 'Pagas': a conta paga (Água) não aparece")
+    checar("Aluguel" not in texto_pagas, "FILTRO 'Pagas': mostra conta pendente (Aluguel)")
+    checar(page.locator('.chip[data-valor="paga"] .chip-contador').count() > 0,
+           "FILTRO 'Pagas': chip sem contador (indica contagem zerada)")
+    checar("total já pago" in texto_pagas.lower(), "FILTRO 'Pagas': rótulo do total não mudou")
+
+    # e os outros status continuam corretos
+    page.click('.chip[data-valor="pendente"]')
+    page.wait_for_timeout(400)
+    texto_pend = page.locator("#conteudo").inner_text()
+    checar("Água" not in texto_pend, "FILTRO 'Pendentes': mostra conta paga (Água)")
+
+    page.click('.chip[data-valor="todos"]')
+    page.wait_for_timeout(400)
+    texto_todos = page.locator("#conteudo").inner_text()
+    checar("Água" in texto_todos and "Aluguel" in texto_todos, "FILTRO 'Todas': não mostra tudo")
 
     # --- CARD RICO: pendente mostra prazo em linguagem humana ---
     page.select_option("#fSelPeriodo", "mes-especifico")

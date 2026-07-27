@@ -212,8 +212,10 @@
              Render.esc(Formatar.capitalizar(c)) + '</option>';
     }).join('');
 
-    var rotulosStatus = { todos: 'Todas', pendente: 'Pendentes', atrasada: 'Atrasadas', pago: 'Pagas' };
-    var chips = ['todos', 'pendente', 'atrasada', 'pago'].map(function (s) {
+    // ATENCAO: os valores aqui sao os que Contas.situacao() devolve ('paga', nao 'pago').
+    // Usar 'pago' fazia o filtro nunca casar e a aba "Pagas" vir sempre vazia. Ver D004.
+    var rotulosStatus = { todos: 'Todas', pendente: 'Pendentes', atrasada: 'Atrasadas', paga: 'Pagas' };
+    var chips = ['todos', 'pendente', 'atrasada', 'paga'].map(function (s) {
       var n = contagens[s];
       return '<button type="button" class="chip' + (f.status === s ? ' ativo' : '') + '" data-filtro="status" data-valor="' + s + '">' +
              rotulosStatus[s] + (n ? '<span class="chip-contador">' + n + '</span>' : '') + '</button>';
@@ -272,7 +274,7 @@
     }
     var contagens = {
       todos: contarCom('todos'), pendente: contarCom('pendente'),
-      atrasada: contarCom('atrasada'), pago: contarCom('pago')
+      atrasada: contarCom('atrasada'), paga: contarCom('paga')
     };
 
     var filtradas = ordenar(
@@ -282,7 +284,7 @@
 
     var total = Filtros.total(filtradas);
     var titulo = tipo === 'pagar' ? 'Contas a pagar' : 'Contas a receber';
-    var rotuloTotal = f.status === 'pago' ? 'Total já pago' : 'Total do filtro';
+    var rotuloTotal = f.status === 'paga' ? 'Total já pago' : 'Total do filtro';
 
     var corpo;
     var tipoPeriodo = f.periodo.tipo;
