@@ -104,7 +104,7 @@ tempo — são dois motores diferentes (ver RN001–RN003 em `REGRAS-DE-NEGOCIO.
   console**. Cobre: criar/editar/excluir conta, marcar pago → recorrência gera a próxima,
   cadastrar parcelado → série completa aparece, filtros de período/categoria/status, alternar
   tema, responsivo mobile.
-- **Toda regra de negócio em `REGRAS-DE-NEGOCIO.md` tem teste** — sem exceção (tier T2+).
+- **Cobertura de regra de negócio:** a tabela é mantida em `docs/REGRAS-DE-NEGOCIO.md` §Cobertura.
 
 ## Decisões técnicas relevantes
 

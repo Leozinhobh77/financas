@@ -11,9 +11,9 @@ _Nenhum plano ativo._
 
 ## Últimos commits
 
+- 2026-07-27 fix: valores cortados no painel — no máximo 2 colunas no celular
+- 2026-07-27 feat: painel do período nas telas de contas
 - 2026-07-27 fix: filtro "Pagas" não retornava nada (divergência pago/paga)
-- 2026-07-26 feat: Meta por dia + Ritmo da semana + bloco "Veio de antes"
-- 2026-07-26 feat: dashboard avançado + repaginada visual completa
 
-[!] 9 arquivo(s) sem commit na hora da geracao.
+[ok] Working tree limpo na geracao.
 

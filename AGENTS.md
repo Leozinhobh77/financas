@@ -46,8 +46,6 @@ python testes/e2e/test_sem_corte.py      # layout: nenhum valor cortado em 8 lar
    `/harness learn "<o erro>"` para virar guarda mecânica.
 7. **Toda regra de `docs/REGRAS-DE-NEGOCIO.md` precisa de teste.** Sem exceção — é dinheiro.
    Prosa sem teste é dívida, não documentação (tier T2+).
-8. **Dinheiro nunca em ponto flutuante ingênuo na exibição.** Formata só na borda
-   (`js/formatar.js`), nunca concatena string pra montar valor.
 
 ## 4. Como este projeto pensa (as 4 portas)
 
