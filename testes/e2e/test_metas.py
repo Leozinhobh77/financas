@@ -197,6 +197,119 @@ def main():
         checa("o dinheiro em mãos subiu depois do lançamento", antes != depois, f"{antes} -> {depois}")
         pagina.screenshot(path=str(CAPTURAS / "metas-4-apos-aporte.png"), full_page=True)
 
+        # ---------------------------------------------- baixa cruzada
+        def em_maos():
+            return pagina.locator(".mes-cobertura .num").first.inner_text()
+
+        def abrir_meta_no_mes():
+            pagina.goto(URL + "#/metas/meta-1")
+            pagina.reload()
+            pagina.wait_for_load_state("networkidle")
+            pagina.wait_for_timeout(120)
+
+        print("\n4b. Pagar POR DENTRO da meta dá baixa nos dois lugares")
+        abrir_meta_no_mes()
+        antes = em_maos()
+        pagina.locator("[data-acao='meta-pagar'][data-id='c2']").click()   # Água, R$ 180
+        pagina.wait_for_timeout(150)
+        checa("abriu o modal de pagamento", pagina.locator("#camadaPagar").is_visible())
+        pagina.locator("#pagarConfirmar").click()
+        pagina.wait_for_timeout(250)
+
+        checa("a caixinha foi debitada", em_maos() != antes, f"{antes} -> {em_maos()}")
+        card = pagina.locator(".conta[data-id='c2']")
+        checa("o card mostra que saiu da caixinha", card.locator(".conta-aviso--ok").count() == 1,
+              card.inner_text())
+        checa("a conta ficou paga em Contas a Pagar", pagina.evaluate(
+            "JSON.parse(localStorage.getItem('financas_v1')).contas.find(c=>c.id==='c2').status") == "pago")
+
+        print("\n4c. Pagar FORA da meta sinaliza, mas não debita")
+        antes = em_maos()
+        pagina.goto(URL + "#/pagar")
+        pagina.wait_for_timeout(150)
+        pagina.locator("[data-acao='alternar-pago'][data-id='c3']").click()  # Internet, R$ 130
+        pagina.wait_for_timeout(150)
+        pagina.locator("#pagarConfirmar").click()
+        pagina.wait_for_timeout(250)
+
+        abrir_meta_no_mes()
+        card = pagina.locator(".conta[data-id='c3']")
+        checa("o card avisa que falta abater", card.locator(".conta-aviso--abater").count() == 1,
+              card.inner_text())
+        checa("a caixinha NÃO foi debitada sozinha", em_maos() == antes, f"{antes} -> {em_maos()}")
+
+        print("\n4d. O botão 'Abater da meta' resolve o aviso")
+        pagina.locator(".conta[data-id='c3'] [data-acao='meta-abater']").click()
+        pagina.wait_for_timeout(250)
+        card = pagina.locator(".conta[data-id='c3']")
+        checa("o aviso virou 'saiu da caixinha'", card.locator(".conta-aviso--ok").count() == 1,
+              card.inner_text())
+        checa("agora sim a caixinha caiu", em_maos() != antes, f"{antes} -> {em_maos()}")
+
+        print("\n4e. Alerta anti-baixa-dupla")
+        pagina.goto(URL + "#/pagar")
+        pagina.wait_for_timeout(150)
+        pagina.locator("[data-acao='alternar-pago'][data-id='c4']").click()  # Celular, R$ 90
+        pagina.wait_for_timeout(150)
+        pagina.locator("#pagarConfirmar").click()
+        pagina.wait_for_timeout(250)
+
+        abrir_meta_no_mes()
+        pagina.locator("[data-acao='meta-pagar'][data-id='c4']").click()
+        pagina.wait_for_timeout(200)
+        checa("aparece o alerta em vez de pagar de novo",
+              pagina.locator("#camadaConfirm").is_visible() and
+              "já foi paga" in pagina.locator("#confirmTitulo").inner_text().lower(),
+              pagina.locator("#confirmTitulo").inner_text())
+        checa("o modal de pagamento NÃO abriu", not pagina.locator("#camadaPagar").is_visible())
+        antes = em_maos()
+        pagina.locator("#confirmBotoes button", has_text="Sim, abater").click()
+        pagina.wait_for_timeout(250)
+        checa("o alerta abate quando confirmado", em_maos() != antes, f"{antes} -> {em_maos()}")
+
+        print("\n4f. Desmarcar o pagamento devolve o dinheiro à caixinha")
+        antes = em_maos()
+        pagina.goto(URL + "#/pagar")
+        pagina.wait_for_timeout(150)
+        pagina.locator("[data-acao='alternar-pago'][data-id='c4']").click()  # desmarca
+        pagina.wait_for_timeout(250)
+        abrir_meta_no_mes()
+        checa("o valor voltou pra caixinha", em_maos() != antes, f"{antes} -> {em_maos()}")
+        card = pagina.locator(".conta[data-id='c4']")
+        checa("o card voltou a ficar aberto", card.locator(".conta-aviso").count() == 0,
+              card.inner_text())
+
+        print("\n4g. Extrato confere linha a linha")
+        movs = pagina.locator(".mov")
+        checa("o extrato lista os lançamentos do mês", movs.count() >= 5, f"{movs.count()} linhas")
+        ultimo_saldo = pagina.locator(".mov").first.locator(".mov-saldo").inner_text()
+        checa("o saldo do topo do extrato bate com 'em mãos'",
+              ultimo_saldo.replace("saldo ", "") == em_maos(),
+              f"extrato={ultimo_saldo} · painel={em_maos()}")
+        checa("baixa não tem botão de excluir solto",
+              pagina.locator(".mov--baixa .icon-btn").count() == 0)
+
+        # Regressão: sob 460px o card comum joga `.conta-direita` para uma linha inteira (lá ela
+        # leva valor + botões). No card da meta não há botões, e o valor ficava sozinho à
+        # esquerda. Tem que continuar na MESMA linha da descrição, à direita.
+        # O valor é centrado verticalmente contra um corpo de 2 linhas, então não empata com o
+        # topo da descrição — o que importa é que ele esteja DENTRO da faixa vertical do corpo
+        # (e não numa linha própria embaixo) e à direita dele.
+        alinhado = pagina.evaluate("""() => {
+          const card = document.querySelector('.conta--meta');
+          const corpo = card.querySelector('.conta-corpo').getBoundingClientRect();
+          const val = card.querySelector('.conta-valor').getBoundingClientRect();
+          const meio = val.top + val.height / 2;
+          return { naFaixaDoCorpo: meio > corpo.top && meio < corpo.bottom,
+                   aDireitaDoCorpo: val.left >= corpo.right - 2,
+                   detalhe: 'corpo ' + Math.round(corpo.top) + '-' + Math.round(corpo.bottom) +
+                            ' · valor meio ' + Math.round(meio) + ' left ' + Math.round(val.left) +
+                            ' · corpo right ' + Math.round(corpo.right) };
+        }""")
+        checa("o valor fica ao lado da descrição, à direita, não numa linha própria",
+              alinhado["naFaixaDoCorpo"] and alinhado["aDireitaDoCorpo"], alinhado["detalhe"])
+        pagina.screenshot(path=str(CAPTURAS / "metas-8-baixa-cruzada.png"), full_page=True)
+
         # ---------------------------------------------- criar campanha pelo assistente
         print("\n5. Assistente de criação")
         pagina.goto(URL + "#/metas")

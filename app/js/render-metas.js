@@ -436,7 +436,214 @@
     );
   }
 
+  // ============================================================
+  // CONTAS DENTRO DA META (baixa cruzada)
+  // ============================================================
+
+  /**
+   * O card de conta dentro da meta é o mesmo de Contas a Pagar, com uma linha a mais: o que
+   * aconteceu com o DINHEIRO. Pagar e abater da caixinha são fatos diferentes (RN016), então
+   * a conta paga fora da meta não pode aparecer igual à que já foi debitada — o card avisa e
+   * já traz o botão que resolve. Aviso que só avisa e não deixa agir vira ruído.
+   */
+  function cardContaDaMeta(conta, meta, hojeISO, ehArrastada) {
+    var sit = Metas.situacaoNaMeta(meta, conta);
+    var visual = global.Render.situacaoVisual(conta, hojeISO);
+    var cor = Categorias.cor(conta.categoria);
+
+    var selos = '';
+    if (ehArrastada) {
+      selos += '<span class="selo selo--arrastada" title="Ficou em aberto num mês anterior">' +
+               Icones.get('alerta') + 'veio de antes</span>';
+    }
+    if (conta.parcela) selos += '<span class="selo">' + esc(Formatar.rotuloParcela(conta)) + '</span>';
+    if (conta.recorrente) {
+      selos += '<span class="selo selo--recorrente" title="Recorrente">' + Icones.get('repetir') + 'todo mês</span>';
+    }
+
+    var direita;
+    if (sit === 'abatida') {
+      direita = '<span class="conta-pago-em">' + Icones.get('check') + 'Abatido em ' +
+                esc(Formatar.dataCurta(conta.pagoEm || conta.vencimento)) + '</span>';
+    } else if (sit === 'paga-fora') {
+      direita = '<span class="conta-pago-em">' + Icones.get('check') + 'Pago em ' +
+                esc(Formatar.dataCurta(conta.pagoEm || conta.vencimento)) + '</span>';
+    } else {
+      var classePrazo = visual === 'atrasada' ? ' atrasada' : (visual === 'hoje' ? ' hoje' : '');
+      direita = '<span class="conta-prazo' + classePrazo + '">' +
+                esc(Formatar.dataCurta(conta.vencimento)) + ' · ' +
+                esc(Analise.rotuloPrazo(Analise.diasAte(conta.vencimento, hojeISO))) + '</span>';
+    }
+
+    // A faixa de aviso: só aparece quando o dinheiro e a conta estão fora de sincronia.
+    var aviso = '';
+    if (sit === 'paga-fora') {
+      aviso =
+        '<div class="conta-aviso conta-aviso--abater">' +
+          '<span>' + Icones.get('alerta') +
+            'Paga em Contas a Pagar — <strong>ainda não abatida</strong> da caixinha</span>' +
+          '<button type="button" class="botao botao-mini" data-acao="meta-abater" data-id="' + conta.id + '">' +
+            'Abater da meta</button>' +
+        '</div>';
+    } else if (sit === 'abatida-sem-pagamento') {
+      aviso =
+        '<div class="conta-aviso conta-aviso--erro">' +
+          '<span>' + Icones.get('alerta') +
+            'Debitada da caixinha, mas a conta está <strong>pendente</strong></span>' +
+          '<button type="button" class="botao botao-mini" data-acao="meta-desabater" data-id="' + conta.id + '">' +
+            'Devolver à caixinha</button>' +
+        '</div>';
+    } else if (sit === 'abatida') {
+      aviso =
+        '<div class="conta-aviso conta-aviso--ok">' +
+          '<span>' + Icones.get('check') + 'Saiu da caixinha</span>' +
+          '<button type="button" class="botao botao-mini botao-mini--fantasma"' +
+            ' data-acao="meta-desabater" data-id="' + conta.id + '">Desfazer</button>' +
+        '</div>';
+    }
+
+    var marcaClasse = sit === 'abatida' ? 'paga' : (sit === 'paga-fora' ? 'paga-fora' : visual);
+    var iconeMarca = (sit === 'abatida' || sit === 'paga-fora') ? 'check'
+                   : (visual === 'atrasada' ? 'alerta' : 'calendario');
+
+    return (
+      '<article class="conta conta--meta conta--' + visual + '" style="--cat:var(--cat-' + cor + ')"' +
+        ' data-id="' + conta.id + '">' +
+        '<button class="conta-marca ' + marcaClasse + '" data-acao="meta-pagar" data-id="' + conta.id + '"' +
+          ' aria-label="' + (sit === 'aberta' ? 'Pagar pela meta' : 'Já paga') + '">' +
+          Icones.get(iconeMarca) + '</button>' +
+        '<div class="conta-corpo">' +
+          '<div class="conta-titulo">' +
+            '<span class="conta-desc">' + esc(conta.descricao) + '</span>' + selos +
+          '</div>' +
+          '<div class="conta-meta">' +
+            '<span class="conta-cat">' + Icones.get(Categorias.icone(conta.categoria)) +
+              esc(conta.categoria) + '</span>' +
+            '<span class="conta-sep">·</span>' + direita +
+          '</div>' +
+        '</div>' +
+        '<div class="conta-direita">' +
+          '<span class="conta-valor">' + Formatar.dinheiro(conta.valor) + '</span>' +
+        '</div>' +
+        aviso +
+      '</article>'
+    );
+  }
+
+  function listaContasDaMeta(r, meta, hojeISO) {
+    if (!r.contas.todas.length) {
+      return (
+        '<section class="cartao">' +
+          '<div class="secao-cabeca"><h2 class="secao-titulo">Contas desta meta</h2></div>' +
+          '<p class="grafico-vazio">Nenhuma conta lançada neste mês ainda. Elas entram sozinhas ' +
+            'conforme forem criadas nas categorias que você marcou.</p>' +
+        '</section>'
+      );
+    }
+
+    var arrastadas = {};
+    r.contas.arrastadas.forEach(function (c) { arrastadas[c.id] = true; });
+
+    var aAbater = r.contas.todas.filter(function (c) {
+      return Metas.situacaoNaMeta(meta, c) === 'paga-fora';
+    });
+    var chamada = aAbater.length
+      ? '<p class="esc-nota esc-nota--alerta">' + Icones.get('alerta') + aAbater.length +
+        (aAbater.length === 1 ? ' conta paga fora da meta espera abatimento' :
+                                ' contas pagas fora da meta esperam abatimento') + '</p>'
+      : '';
+
+    return (
+      '<section class="cartao">' +
+        '<div class="secao-cabeca">' +
+          '<h2 class="secao-titulo">Contas desta meta</h2>' +
+          '<span class="pp-qtd">' + Formatar.dinheiro(r.contas.total) + '</span>' +
+        '</div>' +
+        chamada +
+        '<div class="lista">' +
+          r.contas.todas.map(function (c) {
+            return cardContaDaMeta(c, meta, hojeISO, !!arrastadas[c.id]);
+          }).join('') +
+        '</div>' +
+      '</section>'
+    );
+  }
+
+  // ============================================================
+  // EXTRATO
+  // ============================================================
+
+  var ROTULO_MOV = { aporte: 'Aporte', retirada: 'Retirada', baixa: 'Pagamento' };
+  var ICONE_MOV = { aporte: 'subir', retirada: 'descer', baixa: 'check' };
+
+  /**
+   * O extrato é a prova. Qualquer número de painel tem que dar para conferir aqui, linha a
+   * linha, com o saldo correndo ao lado — é isso que faz um app de dinheiro merecer confiança.
+   */
+  function extratoDoMes(meta, ano, mes) {
+    var linhas = Metas.extrato(meta).filter(function (l) {
+      var p = Datas.parseISO(l.movimento.data);
+      return p.ano === ano && p.mes === mes;
+    });
+
+    if (!linhas.length) {
+      return (
+        '<section class="cartao">' +
+          '<div class="secao-cabeca"><h2 class="secao-titulo">Extrato do mês</h2></div>' +
+          '<p class="grafico-vazio">Nenhum lançamento neste mês ainda.</p>' +
+        '</section>'
+      );
+    }
+
+    var itens = linhas.slice().reverse().map(function (l) {
+      var m = l.movimento;
+      var nome = ROTULO_MOV[m.tipo] || m.tipo;
+      var detalhe = m.foto ? m.foto.descricao : (m.nota || '');
+      var positivo = l.efeito > 0;
+
+      // Baixa não se apaga solta: ela é o par de um pagamento, e some pelo card da conta.
+      var acao = m.tipo === 'baixa' ? ''
+        : '<button class="icon-btn" data-acao="excluir-movimento" data-id="' + m.id + '"' +
+          ' aria-label="Excluir lançamento">' + Icones.get('excluir') + '</button>';
+
+      return (
+        '<article class="mov mov--' + m.tipo + '">' +
+          '<span class="mov-marca">' + Icones.get(ICONE_MOV[m.tipo] || 'tag') + '</span>' +
+          '<div class="mov-corpo">' +
+            '<span class="mov-desc">' + esc(nome) + (detalhe ? ' · ' + esc(detalhe) : '') + '</span>' +
+            '<span class="mov-data">' + esc(Formatar.dataCurta(m.data)) + ' · ' +
+              esc(Datas.nomeDiaSemana(m.data)) + '</span>' +
+          '</div>' +
+          '<div class="mov-direita">' +
+            '<span class="mov-valor ' + (positivo ? 'v-positivo' : 'v-negativo') + '">' +
+              (positivo ? '+' : '−') + Formatar.dinheiro(Math.abs(l.efeito)).replace('R$ ', 'R$ ') +
+            '</span>' +
+            '<span class="mov-saldo">saldo ' + Formatar.dinheiro(l.acumulado) + '</span>' +
+          '</div>' +
+          acao +
+        '</article>'
+      );
+    }).join('');
+
+    var ultimo = linhas[linhas.length - 1];
+    return (
+      '<section class="cartao">' +
+        '<div class="secao-cabeca">' +
+          '<h2 class="secao-titulo">Extrato do mês</h2>' +
+          '<span class="pp-qtd">' + linhas.length +
+            (linhas.length === 1 ? ' lançamento' : ' lançamentos') + '</span>' +
+        '</div>' +
+        '<div class="mov-lista">' + itens + '</div>' +
+        '<p class="esc-legenda">Saldo da campanha ao fim deste mês: <strong class="num">' +
+          Formatar.dinheiro(ultimo.acumulado) + '</strong></p>' +
+      '</section>'
+    );
+  }
+
   global.RenderMetas = {
+    cardContaDaMeta: cardContaDaMeta,
+    listaContasDaMeta: listaContasDaMeta,
+    extratoDoMes: extratoDoMes,
     painelDoMes: painelDoMes,
     listaDeMetas: listaDeMetas,
     cardMeta: cardMeta,

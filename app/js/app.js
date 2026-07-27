@@ -475,7 +475,9 @@
             Icones.get('subir') + 'Adicionar dinheiro</button>' +
           '<button class="botao botao-fantasma" data-acao="nova-retirada" data-id="' + meta.id + '">' +
             Icones.get('descer') + 'Retirar</button>' +
-        '</div>';
+        '</div>' +
+        RenderMetas.listaContasDaMeta(mes, meta, Datas.hoje()) +
+        RenderMetas.extratoDoMes(meta, mes.ano, mes.mes);
     }
 
     elConteudo.innerHTML =
@@ -781,6 +783,122 @@
     renderRota();
   }
 
+  // ---- baixa cruzada: a conta e a caixinha são fatos separados (RN016) ----
+
+  /**
+   * Pagar POR DENTRO da meta: dá baixa na conta e debita a caixinha, num toque só.
+   * Três desvios antes disso:
+   *  - conta já paga fora da meta → alerta anti-baixa-dupla (D007.10), com o abatimento na mão
+   *  - caixinha não cobre o valor → pergunta se o dinheiro veio de fora
+   *  - conta já abatida → não faz nada (o card já oferece "Desfazer")
+   */
+  function pagarNaMeta(metaId, contaId) {
+    var meta = Store.obterMeta(metaId);
+    var conta = Store.listarContas().filter(function (c) { return c.id === contaId; })[0];
+    if (!meta || !conta) return;
+
+    var sit = Metas.situacaoNaMeta(meta, conta);
+    if (sit === 'abatida') { toast('Esta conta já foi paga e abatida da caixinha.'); return; }
+    if (sit === 'abatida-sem-pagamento') { abrirModalPagamento(conta, null); return; }
+
+    if (sit === 'paga-fora') {
+      confirmar('Esta conta já foi paga',
+        '"' + conta.descricao + '" foi paga em ' +
+        Formatar.dataCurta(conta.pagoEm || conta.vencimento) + ', em Contas a Pagar. ' +
+        'Quer abater os ' + Formatar.dinheiro(conta.valor) + ' da caixinha agora?',
+        [
+          { rotulo: 'Não, só marcar', classe: 'botao-fantasma', valor: null },
+          { rotulo: 'Sim, abater da meta', classe: 'botao-principal', valor: 'abater' }
+        ]).then(function (resp) {
+          if (resp === 'abater') abaterDaMeta(metaId, contaId);
+        });
+      return;
+    }
+
+    var saldo = Metas.saldoDaMeta(meta);
+    if (saldo < conta.valor) {
+      confirmar('A caixinha não cobre',
+        'Você tem ' + Formatar.dinheiro(saldo) + ' na caixinha e a conta é de ' +
+        Formatar.dinheiro(conta.valor) + '. Abater deixaria a caixinha em ' +
+        Formatar.dinheiro(saldo - conta.valor) + '. O dinheiro veio de fora da meta?',
+        [
+          { rotulo: 'Cancelar', classe: 'botao-fantasma', valor: null },
+          { rotulo: 'Paguei com dinheiro de fora', classe: 'botao-fantasma', valor: 'fora' },
+          { rotulo: 'Abater mesmo assim', classe: 'botao-principal', valor: 'abater' }
+        ]).then(function (resp) {
+          if (resp === 'fora') abrirModalPagamento(conta, null);
+          else if (resp === 'abater') abrirModalPagamento(conta, { metaId: metaId });
+        });
+      return;
+    }
+
+    abrirModalPagamento(conta, { metaId: metaId });
+  }
+
+  /** Registra que o dinheiro desta conta saiu da caixinha (a conta já estava paga). */
+  function abaterDaMeta(metaId, contaId) {
+    var conta = Store.listarContas().filter(function (c) { return c.id === contaId; })[0];
+    if (!conta) return;
+
+    var dona = Metas.metaQueAbateu(Store.listarMetas(), contaId);
+    if (dona) { toast('Já abatida em "' + dona.nome + '".'); return; }
+
+    Store.adicionarMovimento(metaId, Metas.novoMovimento({
+      tipo: 'baixa',
+      data: conta.pagoEm || Datas.hoje(),
+      valor: conta.valor,
+      contaId: conta.id,
+      conta: conta
+    }));
+    toast(Formatar.dinheiro(conta.valor) + ' abatidos da caixinha.');
+    renderRota();
+  }
+
+  /** Devolve o valor à caixinha, desfazendo o débito. A conta continua paga. */
+  function desabaterDaMeta(metaId, contaId) {
+    var meta = Store.obterMeta(metaId);
+    var mov = meta && Metas.movimentoDaConta(meta, contaId);
+    if (!mov) return;
+    Store.removerMovimentosDaConta(metaId, contaId);
+    toast(Formatar.dinheiro(mov.valor) + ' devolvidos à caixinha. A conta continua paga.');
+    renderRota();
+  }
+
+  function excluirMovimento(metaId, movimentoId) {
+    var meta = Store.obterMeta(metaId);
+    if (!meta) return;
+    var mov = (meta.movimentos || []).filter(function (m) { return m.id === movimentoId; })[0];
+    if (!mov) return;
+    confirmar('Excluir lançamento',
+      Formatar.dinheiro(mov.valor) + ' de ' + Formatar.dataCurta(mov.data) +
+      ' vai sair do extrato e o saldo da meta muda.',
+      [
+        { rotulo: 'Cancelar', classe: 'botao-fantasma', valor: null },
+        { rotulo: 'Excluir', classe: 'botao-perigo', valor: 'sim' }
+      ]).then(function (resp) {
+        if (resp !== 'sim') return;
+        Store.removerMovimento(metaId, movimentoId);
+        toast('Lançamento excluído.');
+        renderRota();
+      });
+  }
+
+  /**
+   * RN018 — desmarcar o pagamento devolve o dinheiro à caixinha, em TODAS as metas. Sem isto,
+   * a conta voltaria a pendente com o débito de pé: a meta cobraria de novo um dinheiro que
+   * já tinha saído, e o saldo passaria a mentir sem nada na tela denunciar.
+   */
+  function devolverBaixasDaConta(contaId) {
+    var devolvido = 0;
+    Store.listarMetas().forEach(function (m) {
+      var mov = Metas.movimentoDaConta(m, contaId);
+      if (!mov) return;
+      devolvido += mov.valor;
+      Store.removerMovimentosDaConta(m.id, contaId);
+    });
+    return devolvido;
+  }
+
   // ---------------------------------------------------------------- AÇÕES
   /**
    * Delegação ÚNICA, anexada uma vez em iniciar(). NUNCA reanexar a cada render: #conteudo é
@@ -808,6 +926,10 @@
       else if (acao === 'excluir-meta') excluirMeta(id);
       else if (acao === 'novo-aporte') abrirModalAporte(id, 'aporte');
       else if (acao === 'nova-retirada') abrirModalAporte(id, 'retirada');
+      else if (acao === 'meta-pagar') pagarNaMeta(estado.metaAberta, id);
+      else if (acao === 'meta-abater') abaterDaMeta(estado.metaAberta, id);
+      else if (acao === 'meta-desabater') desabaterDaMeta(estado.metaAberta, id);
+      else if (acao === 'excluir-movimento') excluirMovimento(estado.metaAberta, id);
     });
 
     // Chips de mês dentro de uma meta
@@ -841,15 +963,23 @@
 
     if (conta.status === 'pago') {
       Store.atualizarConta(id, { status: 'pendente', pagoEm: null });
-      toast('Voltou para pendente.');
+      // RN018 — o débito na caixinha morre junto com o pagamento que o originou.
+      var devolvido = devolverBaixasDaConta(id);
+      toast(devolvido > 0
+        ? 'Voltou para pendente. ' + Formatar.dinheiro(devolvido) + ' devolvidos à caixinha.'
+        : 'Voltou para pendente.');
       renderRota();
       return;
     }
     abrirModalPagamento(conta);
   }
 
-  /** Marcar como paga escolhendo a data (padrão hoje) — pedido explícito do usuário. */
-  function abrirModalPagamento(conta) {
+  /**
+   * Marcar como paga escolhendo a data (padrão hoje) — pedido explícito do usuário.
+   * `contextoMeta` (opcional) faz o pagamento debitar a caixinha no mesmo gesto: é o que
+   * diferencia "paguei por dentro da meta" de "paguei em Contas a Pagar" (RN016).
+   */
+  function abrirModalPagamento(conta, contextoMeta) {
     var camada = document.getElementById('camadaPagar');
     document.getElementById('pagarDescricao').textContent = conta.descricao;
     document.getElementById('pagarValor').textContent = Formatar.dinheiro(conta.valor);
@@ -873,17 +1003,28 @@
       var data = input.value || Datas.hoje();
       Store.atualizarConta(conta.id, { status: 'pago', pagoEm: data });
 
+      // Pagou POR DENTRO da meta: a caixinha é debitada no mesmo gesto (RN016).
+      var abateu = false;
+      if (contextoMeta && contextoMeta.metaId && !Metas.metaQueAbateu(Store.listarMetas(), conta.id)) {
+        Store.adicionarMovimento(contextoMeta.metaId, Metas.novoMovimento({
+          tipo: 'baixa', data: data, valor: conta.valor, contaId: conta.id, conta: conta
+        }));
+        abateu = true;
+      }
+
+      var sufixo = abateu ? ' ' + Formatar.dinheiro(conta.valor) + ' saíram da caixinha.' : '';
+
       if (conta.recorrente) {
         var jaExiste = Store.listarContas().some(function (c) { return c.recorrenciaOrigemId === conta.id; });
         if (jaExiste) {
-          toast('Paga em ' + Formatar.dataCurta(data) + '. A próxima já existia.');
+          toast('Paga em ' + Formatar.dataCurta(data) + '. A próxima já existia.' + sufixo);
         } else {
           var prox = Contas.gerarProximaRecorrencia(Object.assign({}, conta, { status: 'pago' }));
           Store.adicionarConta(prox);
-          toast('Paga! Próxima em ' + Formatar.dataCurta(prox.vencimento) + '.');
+          toast('Paga! Próxima em ' + Formatar.dataCurta(prox.vencimento) + '.' + sufixo);
         }
       } else {
-        toast('Paga em ' + Formatar.dataCurta(data) + '.');
+        toast('Paga em ' + Formatar.dataCurta(data) + '.' + sufixo);
       }
       fechar();
       renderRota();
@@ -918,13 +1059,27 @@
       });
     }
 
-    return confirmar('Excluir conta', 'Excluir "' + conta.descricao + '"? Essa ação não pode ser desfeita.', [
-      { rotulo: 'Cancelar', classe: 'botao-fantasma', valor: null },
-      { rotulo: 'Excluir', classe: 'botao-perigo', valor: 'sim' }
-    ]).then(function (e) {
-      if (e === 'sim') { Store.removerConta(id); toast('Conta excluída.'); return true; }
-      return false;
-    });
+    // Se a conta já foi abatida de alguma caixinha, excluir mexe em dinheiro — o aviso tem
+    // que dizer isso ANTES, e o valor volta pra meta depois (D007.2).
+    var dona = Metas.metaQueAbateu(Store.listarMetas(), id);
+    var extra = dona
+      ? ' Ela já foi abatida da meta "' + dona.nome + '": os ' + Formatar.dinheiro(conta.valor) +
+        ' voltam para a caixinha.'
+      : '';
+
+    return confirmar('Excluir conta',
+      'Excluir "' + conta.descricao + '"? Essa ação não pode ser desfeita.' + extra, [
+        { rotulo: 'Cancelar', classe: 'botao-fantasma', valor: null },
+        { rotulo: 'Excluir', classe: 'botao-perigo', valor: 'sim' }
+      ]).then(function (e) {
+        if (e !== 'sim') return false;
+        var devolvido = devolverBaixasDaConta(id);
+        Store.removerConta(id);
+        toast(devolvido > 0
+          ? 'Conta excluída. ' + Formatar.dinheiro(devolvido) + ' devolvidos à caixinha.'
+          : 'Conta excluída.');
+        return true;
+      });
   }
 
   // ---------------------------------------------------------------- MODAL DE CONTA
@@ -1015,8 +1170,27 @@
     var dados = { tipo: tipo, descricao: descricao, categoria: categoria, valor: valor, vencimento: vencimento, notas: notas };
 
     if (editandoId) {
+      // Mudar o valor de uma conta já abatida deixaria a baixa mentindo a diferença (F2/D007.2).
+      // O extrato acompanha, e o toast diz o que mudou no dinheiro — nada em silêncio.
+      var antes = Store.listarContas().filter(function (c) { return c.id === editandoId; })[0];
+      var dona = Metas.metaQueAbateu(Store.listarMetas(), editandoId);
+      var ajustou = 0;
+      if (dona && antes && Number(dados.valor) !== antes.valor) {
+        var movAntigo = Metas.movimentoDaConta(dona, editandoId);   // ler ANTES de remover
+        ajustou = Number(dados.valor) - antes.valor;
+        Store.removerMovimentosDaConta(dona.id, editandoId);
+        Store.adicionarMovimento(dona.id, Metas.novoMovimento({
+          tipo: 'baixa',
+          data: (movAntigo && movAntigo.data) || antes.pagoEm || Datas.hoje(),
+          valor: Number(dados.valor),
+          contaId: editandoId,
+          conta: Object.assign({}, antes, dados)
+        }));
+      }
       Store.atualizarConta(editandoId, dados);
-      toast('Conta atualizada.');
+      toast(ajustou !== 0
+        ? 'Conta atualizada. A baixa na meta "' + dona.nome + '" acompanhou.'
+        : 'Conta atualizada.');
     } else if (modo === 'parcelada') {
       var n = Math.max(1, parseInt(document.getElementById('fParcelas').value, 10) || 1);
       Store.adicionarContas(Contas.gerarParcelas(dados, n));

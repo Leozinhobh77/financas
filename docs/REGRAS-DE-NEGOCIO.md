@@ -24,7 +24,9 @@
 | RN013 — Duas linhas por dia: alvo (juntar) e piso (não dever) | `testes/motor.teste.js` · casos `RN013-*` |
 | RN014 — Sobra prevista × real; cofre nunca negativo; arrasto | `testes/motor.teste.js` · casos `RN014-*` |
 | RN015 — Ritmo real, projeção e dia da virada | `testes/motor.teste.js` · casos `RN015-*` |
+| RN016 — Baixa cruzada: pagar a conta ≠ debitar a caixinha | `testes/motor.teste.js` · `RN016-*` + `test_metas.py` (4b–4e) |
 | RN017 — Dinheiro movimentado não sai por mudança de filtro | `testes/motor.teste.js` · casos `RN017-*` |
+| RN018 — Desfazer o pagamento devolve o dinheiro à caixinha | `testes/motor.teste.js` · `RN018-*` + `test_metas.py` (4f) |
 | RN019 — Movimento guarda fotografia da conta | `testes/motor.teste.js` · casos `RN019-*` |
 
 Meta: 100%. `/harness doctor` reprova regra sem teste em projeto T2+.
@@ -151,6 +153,62 @@ passa a cobrir tudo que falta pagar. Se já cobre, está virado e não há data 
 
 **Teste:** `motor.teste.js` · `RN015-1..3`.
 **Procedência:** enriquecimento aprovado na auditoria de 2026-07-27.
+
+---
+
+### RN016 — Baixa cruzada: pagar a conta e debitar a caixinha são fatos separados
+**Regra:** "a conta foi paga" e "o dinheiro saiu da minha caixinha" são **duas informações
+diferentes**. A conta tem um estado só (`pago` / `pendente`); a meta tem o **registro do
+débito**. Quatro situações:
+
+| Situação | Significa |
+|---|---|
+| `aberta` | pendente, sem movimento — o caso normal |
+| `abatida` | paga **e** debitada da caixinha — o ciclo completo |
+| `paga-fora` | paga em Contas a Pagar, **ainda não debitada** — precisa de aviso |
+| `abatida-sem-pagamento` | debitada, mas a conta voltou a pendente — inconsistência |
+
+**Comportamento:**
+
+- **Pagar por dentro da meta** → dá baixa na conta **e** debita a caixinha, num gesto só.
+- **Pagar em Contas a Pagar** → a conta fica paga; a caixinha **não** é debitada. O card, dentro
+  da meta, mostra o aviso **com o botão que resolve** ("Abater da meta").
+- **Tentar pagar de novo por dentro da meta** uma conta já paga → em vez de pagar duas vezes,
+  aparece o alerta: *"já foi paga em DD/MM. Quer abater os R$ X da caixinha agora?"*
+- **Uma conta só pode ser abatida uma vez**, e por uma meta só (RN012).
+
+**Por quê:** pode ser que a conta tenha sido paga com o salário, e não com o dinheiro guardado.
+Debitar automático faria o cofre mentir para baixo; não avisar faria mentir para cima. O débito
+acontece quando o usuário diz que aconteceu — e o app não deixa ele esquecer.
+
+**Exemplos:**
+- Abater não muda o "Já paguei" do painel (a conta já estava paga); muda o **saldo da caixinha**
+- Meta com R$ 1.000 e conta paga de R$ 340: antes de abater, saldo 1.000; depois, **660**
+
+**Teste:** `motor.teste.js` · `RN016-1..7` + `test_metas.py` (4b, 4c, 4d, 4e).
+**Procedência:** pedido do usuário — "quando eu marcar numa conta [na meta] automaticamente ela
+vai dar baixa geral... já ao contrário, minhas contas a pagar deu baixa lá, ela não vai dar baixa
+na meta não; ou então fica alguma sinalização, pra não dar conflito de dar baixa duas vezes".
+
+---
+
+### RN018 — Desfazer o pagamento devolve o dinheiro à caixinha
+**Regra:** desmarcar o pagamento de uma conta remove o débito correspondente **em todas as
+metas**. O mesmo vale ao **excluir** a conta: o valor volta para a caixinha, e a confirmação
+avisa isso antes. Editar o valor de uma conta já abatida **atualiza a baixa junto**.
+
+**Por quê:** sem isso a conta voltaria a ser cobrada por inteiro enquanto o dinheiro dela
+continuava debitado — a meta cobraria **duas vezes** o mesmo dinheiro, e nada na tela
+denunciaria. É o estado `abatida-sem-pagamento` da RN016, que por isso existe sinalizado.
+
+**Exemplos:**
+- Caixinha com 1.000, baixa de 340 → saldo 660. Desmarcou o pagamento → volta a **1.000**
+- Excluiu a conta já abatida → o valor volta, e o aviso disse isso antes de excluir
+- Conta de 340 abatida, editada para 400 → a baixa passa a 400, e o toast avisa
+
+**Teste:** `motor.teste.js` · `RN018-1..2` + `test_metas.py` (4f).
+**Procedência:** furo identificado na fase 3, junto com a RN016 — a volta atrás não pode deixar
+metade do fato de pé.
 
 ---
 

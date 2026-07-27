@@ -270,6 +270,47 @@
   }
 
   // ============================================================
+  // BAIXA CRUZADA — a conta e a caixinha são coisas diferentes
+  // ============================================================
+
+  /**
+   * RN016 — "a conta foi paga" e "o dinheiro saiu da minha caixinha" são fatos SEPARADOS.
+   * A conta tem um estado só (pago ou não); a meta tem o registro do débito. Pagar pelo
+   * salário e pagar pela caixinha são coisas diferentes, e só o usuário sabe qual foi.
+   *
+   *   'aberta'                 pendente, sem movimento — o caso normal
+   *   'abatida'                paga E debitada da caixinha — o ciclo completo
+   *   'paga-fora'              paga em Contas a Pagar, ainda NÃO debitada — precisa de aviso
+   *   'abatida-sem-pagamento'  debitada mas a conta voltou a pendente — inconsistência
+   *
+   * O último estado não deveria acontecer pela interface (RN018 desfaz o débito ao desmarcar
+   * o pagamento), mas existe aqui para a tela poder mostrar e oferecer conserto em vez de
+   * exibir um número errado calado.
+   */
+  function situacaoNaMeta(meta, conta) {
+    var temMov = temMovimentoDaConta(meta, conta.id);
+    if (conta.status === 'pago') return temMov ? 'abatida' : 'paga-fora';
+    return temMov ? 'abatida-sem-pagamento' : 'aberta';
+  }
+
+  /** O movimento de baixa ligado a uma conta (o primeiro, se houver mais de um). */
+  function movimentoDaConta(meta, contaId) {
+    return (meta.movimentos || []).filter(function (m) { return m.contaId === contaId; })[0] || null;
+  }
+
+  /** Contas já pagas fora da meta que ainda não foram abatidas da caixinha. */
+  function pendentesDeAbatimento(meta, contas, ano, mes, outrasMetas) {
+    return contasDaMeta(meta, contas, ano, mes, outrasMetas).filter(function (c) {
+      return situacaoNaMeta(meta, c) === 'paga-fora';
+    });
+  }
+
+  /** Qual meta (se alguma) já debitou esta conta — usado pelo alerta anti-baixa-dupla. */
+  function metaQueAbateu(metas, contaId) {
+    return (metas || []).filter(function (m) { return temMovimentoDaConta(m, contaId); })[0] || null;
+  }
+
+  // ============================================================
   // RESUMO DE UM MÊS
   // ============================================================
 
@@ -540,6 +581,11 @@
     donoDaConta: donoDaConta,
     contasDaMeta: contasDaMeta,
     contasReservadasPorOutra: contasReservadasPorOutra,
+    // baixa cruzada
+    situacaoNaMeta: situacaoNaMeta,
+    movimentoDaConta: movimentoDaConta,
+    pendentesDeAbatimento: pendentesDeAbatimento,
+    metaQueAbateu: metaQueAbateu,
     // resumos
     resumoDoMes: resumoDoMes,
     resumoDaCampanha: resumoDaCampanha,

@@ -1071,6 +1071,119 @@ teste('RN015-3: quem já cobriu as contas está virado, sem data pendente', func
   assert.strictEqual(r.meses[0].viradaISO, null);
 });
 
+secao('RN016 — baixa cruzada: pagar a conta e debitar a caixinha são fatos separados');
+
+teste('RN016-1: conta pendente e sem movimento está "aberta"', function () {
+  var contas = contasDaCampanha();
+  var meta = metaFixa('Reserva', MESES_CAMPANHA, CATS_CAMPANHA);
+  assert.strictEqual(Metas.situacaoNaMeta(meta, contas[0]), 'aberta');
+});
+
+teste('RN016-2: paga em Contas a Pagar, sem abatimento -> "paga-fora"', function () {
+  var contas = contasDaCampanha();
+  contas[0].status = 'pago';
+  contas[0].pagoEm = '2026-08-05';
+  var meta = metaFixa('Reserva', MESES_CAMPANHA, CATS_CAMPANHA);
+  assert.strictEqual(Metas.situacaoNaMeta(meta, contas[0]), 'paga-fora');
+});
+
+teste('RN016-3: paga E debitada da caixinha -> "abatida"', function () {
+  var contas = contasDaCampanha();
+  contas[0].status = 'pago';
+  contas[0].pagoEm = '2026-08-05';
+  var meta = metaFixa('Reserva', MESES_CAMPANHA, CATS_CAMPANHA);
+  meta.movimentos = [Metas.novoMovimento({
+    tipo: 'baixa', data: '2026-08-05', valor: 340, contaId: contas[0].id, conta: contas[0]
+  })];
+  assert.strictEqual(Metas.situacaoNaMeta(meta, contas[0]), 'abatida');
+});
+
+teste('RN016-4: debitada mas a conta voltou a pendente -> inconsistência sinalizada', function () {
+  var contas = contasDaCampanha();
+  var meta = metaFixa('Reserva', MESES_CAMPANHA, CATS_CAMPANHA);
+  meta.movimentos = [Metas.novoMovimento({
+    tipo: 'baixa', data: '2026-08-05', valor: 340, contaId: contas[0].id, conta: contas[0]
+  })];
+  assert.strictEqual(Metas.situacaoNaMeta(meta, contas[0]), 'abatida-sem-pagamento');
+});
+
+teste('RN016-5: a tela sabe quais contas esperam abatimento', function () {
+  var contas = contasDaCampanha();
+  contas[0].status = 'pago'; contas[0].pagoEm = '2026-08-05';
+  contas[1].status = 'pago'; contas[1].pagoEm = '2026-08-10';
+  var meta = metaFixa('Reserva', MESES_CAMPANHA, CATS_CAMPANHA);
+  meta.movimentos = [Metas.novoMovimento({
+    tipo: 'baixa', data: '2026-08-05', valor: 340, contaId: contas[0].id, conta: contas[0]
+  })];
+  var esperando = Metas.pendentesDeAbatimento(meta, contas, 2026, 8);
+  assert.strictEqual(esperando.length, 1);
+  assert.strictEqual(esperando[0].descricao, 'Água');
+});
+
+teste('RN016-6: abater NÃO muda o total pago das contas — muda o saldo da caixinha', function () {
+  var contas = contasDaCampanha();
+  contas[0].status = 'pago'; contas[0].pagoEm = '2026-08-05';
+  var meta = metaFixa('Reserva', MESES_CAMPANHA, CATS_CAMPANHA);
+  meta.movimentos = [Metas.novoMovimento({ tipo: 'aporte', data: '2026-08-01', valor: 1000 })];
+
+  var antes = Metas.resumoDoMes(meta, contas, 2026, 8, '2026-08-15');
+  assert.strictEqual(antes.contas.pago, 340, 'a conta já está paga');
+  assert.strictEqual(Metas.saldoDaMeta(meta), 1000, 'mas a caixinha ainda tem tudo');
+
+  meta.movimentos.push(Metas.novoMovimento({
+    tipo: 'baixa', data: '2026-08-05', valor: 340, contaId: contas[0].id, conta: contas[0]
+  }));
+  var depois = Metas.resumoDoMes(meta, contas, 2026, 8, '2026-08-15');
+  assert.strictEqual(depois.contas.pago, 340, 'o total pago não muda');
+  assert.strictEqual(Metas.saldoDaMeta(meta), 660, 'quem muda é a caixinha');
+});
+
+teste('RN016-7: metaQueAbateu impede abater a mesma conta duas vezes', function () {
+  var contas = contasDaCampanha();
+  var a = metaFixa('Reserva', MESES_CAMPANHA, ['casa'], '2026-07-01T10:00:00.000Z');
+  var b = metaFixa('Viagem', MESES_CAMPANHA, ['casa'], '2026-07-20T10:00:00.000Z');
+  assert.strictEqual(Metas.metaQueAbateu([a, b], contas[0].id), null);
+  a.movimentos = [Metas.novoMovimento({
+    tipo: 'baixa', data: '2026-08-05', valor: 340, contaId: contas[0].id, conta: contas[0]
+  })];
+  assert.strictEqual(Metas.metaQueAbateu([a, b], contas[0].id).nome, 'Reserva');
+});
+
+secao('RN018 — desfazer o pagamento devolve o dinheiro à caixinha');
+
+teste('RN018-1: sem o movimento, o saldo volta ao que era', function () {
+  var contas = contasDaCampanha();
+  contas[0].status = 'pago'; contas[0].pagoEm = '2026-08-05';
+  var meta = metaFixa('Reserva', MESES_CAMPANHA, CATS_CAMPANHA);
+  meta.movimentos = [
+    Metas.novoMovimento({ tipo: 'aporte', data: '2026-08-01', valor: 1000 }),
+    Metas.novoMovimento({ tipo: 'baixa', data: '2026-08-05', valor: 340, contaId: contas[0].id, conta: contas[0] })
+  ];
+  assert.strictEqual(Metas.saldoDaMeta(meta), 660);
+
+  // é o que Store.removerMovimentosDaConta faz quando o pagamento é desmarcado
+  meta.movimentos = meta.movimentos.filter(function (m) { return m.contaId !== contas[0].id; });
+  contas[0].status = 'pendente'; contas[0].pagoEm = null;
+
+  assert.strictEqual(Metas.saldoDaMeta(meta), 1000, 'o dinheiro voltou pra caixinha');
+  assert.strictEqual(Metas.situacaoNaMeta(meta, contas[0]), 'aberta', 'e a conta voltou a aberta');
+});
+
+teste('RN018-2: se a baixa ficasse de pé, a meta cobraria duas vezes o mesmo dinheiro', function () {
+  var contas = contasDaCampanha();
+  var meta = metaFixa('Reserva', MESES_CAMPANHA, CATS_CAMPANHA);
+  meta.movimentos = [
+    Metas.novoMovimento({ tipo: 'aporte', data: '2026-08-01', valor: 1000 }),
+    Metas.novoMovimento({ tipo: 'baixa', data: '2026-08-05', valor: 340, contaId: contas[0].id, conta: contas[0] })
+  ];
+  // conta desmarcada SEM devolver: o cenário que a RN018 existe para impedir
+  var r = Metas.resumoDoMes(meta, contas, 2026, 8, '2026-08-15');
+  assert.strictEqual(r.contas.falta, 6000, 'a conta voltou a ser cobrada por inteiro');
+  assert.strictEqual(Metas.saldoDaMeta(meta), 660, 'mas o dinheiro dela continuava debitado');
+  assert.strictEqual(Metas.situacaoNaMeta(meta, contas[0]), 'abatida-sem-pagamento',
+    'por isso este estado é sinalizado na tela em vez de passar batido');
+});
+
 secao('RN017 / F3 — dinheiro movimentado não é desfeito por mudança de filtro');
 
 teste('RN017-1: conta com baixa continua na meta mesmo mudando de categoria', function () {

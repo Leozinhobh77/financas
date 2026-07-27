@@ -190,6 +190,42 @@ A meta **lê** as contas. Nunca as possui.
 
 ---
 
+## 9b. Pagar uma conta: os dois lugares
+
+Pagar a conta e tirar o dinheiro da caixinha são **duas coisas diferentes** — pode ser que você
+tenha pago com o salário, e não com o dinheiro guardado. Só você sabe qual foi.
+
+| Onde você marca | Baixa na conta? | Debita a caixinha? |
+|---|---|---|
+| **Dentro da Meta** | ✅ automático | ✅ automático |
+| **Em Contas a Pagar** | ✅ | ❌ **não** — mas a meta avisa |
+
+Pagando fora, o card dentro da meta fica assim:
+
+```
+┌────────────────────────────────────────────┐
+│ ✓  Internet          🏠 casa · Pago 27/07  │
+│                                    R$ 130  │
+│ ⚠️ Paga em Contas a Pagar —                │
+│    ainda não abatida da caixinha           │
+│                        [ Abater da meta ]  │
+└────────────────────────────────────────────┘
+```
+
+O aviso **já traz o botão que resolve**. Aviso que só avisa e não deixa agir vira ruído: você
+ignora depois da terceira vez.
+
+E se tentar pagar de novo por dentro da meta, em vez de pagar duas vezes:
+
+> **Esta conta já foi paga** em 27/07, em Contas a Pagar.
+> Quer abater os R$ 130,00 da caixinha agora?
+> `[ Não, só marcar ]` `[ Sim, abater da meta ]`
+
+**Voltar atrás devolve tudo.** Desmarcar o pagamento, excluir a conta ou mudar o valor dela
+ajusta a caixinha junto — nunca fica metade do fato de pé (RN018).
+
+---
+
 ## 10. O extrato é a fonte da verdade
 
 Todo o dinheiro da meta vive numa **lista só**, em ordem de tempo — aportes, retiradas e baixas
