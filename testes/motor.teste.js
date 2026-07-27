@@ -1267,6 +1267,170 @@ teste('D007.4-2: valor entra sempre positivo; quem dá a direção é o tipo', f
   assert.strictEqual(Metas.efeito(m), -500);
 });
 
+secao('RN020 — conta que entra sozinha é sinalizada, não some no meio');
+
+teste('RN020-1: meta ainda não fotografada não acusa o acervo inteiro como novidade', function () {
+  var meta = metaFixa('Reserva', MESES_CAMPANHA, CATS_CAMPANHA);
+  assert.strictEqual(Metas.contasNovas(meta, contasDaCampanha()).length, 0);
+});
+
+teste('RN020-2: depois da fotografia, conta nova na categoria marcada é acusada', function () {
+  var contas = contasDaCampanha();
+  var meta = metaFixa('Reserva', MESES_CAMPANHA, CATS_CAMPANHA);
+  meta.contasConhecidas = Metas.idsDasContasDaMeta(meta, contas);
+  meta.snapshotEm = '2026-08-01T10:00:00.000Z';
+  assert.strictEqual(Metas.contasNovas(meta, contas).length, 0, 'nada mudou ainda');
+
+  contas.push(contaFixa('pagar', 'IPVA 2/3', 'casa', 600, '2026-10-18', 'pendente'));
+  var novas = Metas.contasNovas(meta, contas);
+  assert.strictEqual(novas.length, 1);
+  assert.strictEqual(novas[0].conta.descricao, 'IPVA 2/3');
+  assert.strictEqual(novas[0].mes, 10);
+});
+
+teste('RN020-3: o impacto vem agrupado por mês, com o total que encolheu a sobra', function () {
+  var contas = contasDaCampanha();
+  var meta = metaFixa('Reserva', MESES_CAMPANHA, CATS_CAMPANHA);
+  meta.contasConhecidas = Metas.idsDasContasDaMeta(meta, contas);
+  meta.snapshotEm = '2026-08-01T10:00:00.000Z';
+
+  contas.push(contaFixa('pagar', 'IPVA', 'casa', 600, '2026-10-18', 'pendente'));
+  contas.push(contaFixa('pagar', 'Dentista', 'outros', 250, '2026-10-20', 'pendente'));
+  var impacto = Metas.impactoDasContasNovas(meta, contas);
+
+  assert.strictEqual(impacto.length, 1, 'as duas caem no mesmo mês');
+  assert.strictEqual(impacto[0].mes, 10);
+  assert.strictEqual(impacto[0].total, 850);
+
+  // a sobra de outubro era 9.000 − 6.600 = 2.400; agora é 1.550
+  var r = Metas.resumoDaCampanha(meta, contas, '2026-08-01');
+  assert.strictEqual(r.meses[2].sobraPrevista, 1550);
+});
+
+secao('RN021 — mês no vermelho: as contas passam da caixinha');
+
+teste('RN021-1: mês cujas contas superam o alvo aparece na lista de risco', function () {
+  var contas = contasDaCampanha();
+  contas.push(contaFixa('pagar', 'Conserto do carro', 'casa', 3000, '2026-10-20', 'pendente'));
+  var meta = metaFixa('Reserva', MESES_CAMPANHA, CATS_CAMPANHA);
+  var r = Metas.resumoDaCampanha(meta, contas, '2026-08-01');
+
+  var risco = Metas.mesesEmRisco(r);
+  assert.strictEqual(risco.length, 1);
+  assert.strictEqual(risco[0].mes, 10);
+  assert.strictEqual(risco[0].sobraPrevista, -600, '9.600 de conta contra caixinha de 9.000');
+});
+
+teste('RN021-2: mês sem contas lançadas NÃO conta como risco', function () {
+  var meta = metaFixa('Reserva', MESES_CAMPANHA, CATS_CAMPANHA);
+  var r = Metas.resumoDaCampanha(meta, contasDaCampanha().slice(0, 8), '2026-08-01');
+  assert.strictEqual(Metas.mesesEmRisco(r).length, 0);
+});
+
+secao('RN022 — até onde o dinheiro em mãos alcança');
+
+teste('RN022-1: paga por ordem de vencimento e marca onde o dinheiro acaba', function () {
+  var contas = contasDaCampanha().slice(0, 8);   // 6.000 em agosto
+  var alcance = Metas.ateOndeAlcanca(contas, 4000);
+
+  assert.strictEqual(alcance.cobertas.length, 7, 'as 7 primeiras somam 3.900');
+  assert.strictEqual(alcance.cortada.descricao, 'Fatura Nubank');
+  assert.strictEqual(alcance.faltam, 2000, '2.100 − 100 que sobraram');
+  assert.strictEqual(centavos(alcance.sobra), '100.00');
+  assert.strictEqual(alcance.cobreTudo, false);
+});
+
+teste('RN022-2: com dinheiro para tudo, não há corte', function () {
+  var alcance = Metas.ateOndeAlcanca(contasDaCampanha().slice(0, 8), 10000);
+  assert.strictEqual(alcance.cobreTudo, true);
+  assert.strictEqual(alcance.cortada, null);
+  assert.strictEqual(alcance.sobra, 4000);
+});
+
+teste('RN022-3: sem dinheiro nenhum, a primeira já é a cortada', function () {
+  var alcance = Metas.ateOndeAlcanca(contasDaCampanha().slice(0, 8), 0);
+  assert.strictEqual(alcance.cobertas.length, 0);
+  assert.strictEqual(alcance.cortada.descricao, 'Energia');
+  assert.strictEqual(alcance.faltam, 340);
+});
+
+secao('RN023 — relatório: série do mês, sequência e simulador');
+
+teste('RN023-1: a série acumula o real e desenha a linha ideal do plano', function () {
+  var meta = metaFixa('Reserva', MESES_CAMPANHA, CATS_CAMPANHA);
+  meta.movimentos = [
+    Metas.novoMovimento({ tipo: 'aporte', data: '2026-08-01', valor: 400 }),
+    Metas.novoMovimento({ tipo: 'aporte', data: '2026-08-03', valor: 600 })
+  ];
+  var serie = Metas.serieAcumulada(meta, 2026, 8);
+
+  assert.strictEqual(serie.length, 31);
+  assert.strictEqual(serie[0].real, 400);
+  assert.strictEqual(serie[1].real, 400, 'dia sem lançamento mantém o acumulado');
+  assert.strictEqual(serie[2].real, 1000);
+  assert.strictEqual(serie[30].real, 1000);
+  assert.strictEqual(centavos(serie[30].ideal), '9000.00', 'a linha ideal fecha no alvo');
+  assert.strictEqual(centavos(serie[0].ideal), '290.32');
+});
+
+teste('RN023-2: sequência conta dias seguidos e ontem ainda vale', function () {
+  var meta = metaFixa('Reserva', MESES_CAMPANHA, CATS_CAMPANHA);
+  meta.movimentos = ['2026-08-08', '2026-08-09', '2026-08-10'].map(function (d) {
+    return Metas.novoMovimento({ tipo: 'aporte', data: d, valor: 100 });
+  });
+
+  var hoje = Metas.sequenciaDeDias(meta, '2026-08-10');
+  assert.strictEqual(hoje.dias, 3);
+  assert.strictEqual(hoje.lancouHoje, true);
+
+  var amanha = Metas.sequenciaDeDias(meta, '2026-08-11');
+  assert.strictEqual(amanha.dias, 3, 'ainda não lançou hoje, mas lançou ontem');
+  assert.strictEqual(amanha.lancouHoje, false);
+
+  var depois = Metas.sequenciaDeDias(meta, '2026-08-12');
+  assert.strictEqual(depois.dias, 0, 'um dia inteiro em branco quebra a sequência');
+});
+
+teste('RN023-3: simulador — 400/dia fecha agosto em 12.400 e leva o cofre a 15.400', function () {
+  var meta = metaFixa('Reserva', MESES_CAMPANHA, CATS_CAMPANHA);
+  var r = Metas.resumoDaCampanha(meta, contasDaCampanha(), '2026-08-01');
+  assert.strictEqual(r.cofrePrevisto, 12000, 'linha de base');
+
+  var s = Metas.simular(r, 400, '2026-08-01');
+  assert.strictEqual(s.fechaCom, 12400, '400 × 31 dias');
+  assert.strictEqual(s.acimaDoAlvo, 3400);
+  assert.strictEqual(s.cofre, 15400, 'bate com o cenário real da RN014-2');
+});
+
+teste('RN023-4: simulador com pouco por dia derruba o cofre na mesma proporção', function () {
+  var meta = metaFixa('Reserva', MESES_CAMPANHA, CATS_CAMPANHA);
+  var r = Metas.resumoDaCampanha(meta, contasDaCampanha(), '2026-08-01');
+  var s = Metas.simular(r, 100, '2026-08-01');
+  assert.strictEqual(s.fechaCom, 3100);
+  assert.strictEqual(s.cofre, 12000 + (3100 - 9000));
+  assert.ok(s.cofre < r.cofrePrevisto);
+});
+
+secao('RN024 — duplicar campanha');
+
+teste('RN024-1: os meses deslocam para depois do fim, mantendo os buracos', function () {
+  var meta = metaFixa('Reserva', MESES_CAMPANHA, CATS_CAMPANHA); // ago,set,out,nov/2026
+  var novos = Metas.mesesParaDuplicar(meta);
+  assert.deepStrictEqual(novos.map(function (m) { return m.ano + '-' + m.mes; }),
+    ['2026-12', '2027-1', '2027-2', '2027-3']);
+  assert.deepStrictEqual(novos.map(function (m) { return m.alvo; }), [9000, 9000, 9000, 8000]);
+});
+
+teste('RN024-2: campanha com mês pulado mantém o buraco na cópia', function () {
+  var meta = metaFixa('Viagem', [
+    { ano: 2026, mes: 11, alvo: 300 },
+    { ano: 2027, mes: 1, alvo: 400 }     // dezembro pulado
+  ], ['casa']);
+  var novos = Metas.mesesParaDuplicar(meta);
+  assert.deepStrictEqual(novos.map(function (m) { return m.ano + '-' + m.mes; }),
+    ['2027-2', '2027-4']);
+});
+
 secao('Datas — funções novas usadas pelo motor de metas');
 
 teste('DATAS-1: diasEntre conta na direção certa e somarDias atravessa o mês', function () {

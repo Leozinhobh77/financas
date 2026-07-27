@@ -61,7 +61,9 @@ META = {
          "criadoEm": "2026-07-05T11:00:00.000Z"},
         {"id": "m4", "tipo": "aporte", "data": "2026-07-12", "valor": 1200, "nota": "13º", "contaId": None, "foto": None, "criadoEm": "2026-07-12T10:00:00.000Z"},
     ],
-    "contasConhecidas": [],
+    # já "fotografada": é o que permite detectar conta que entrar depois (RN020)
+    "contasConhecidas": [c["id"] for c in CONTAS],
+    "snapshotEm": "2026-07-01T10:00:00.000Z",
     "config": {"excedente": "cofre"},
 }
 
@@ -83,7 +85,8 @@ MEDIR_CORTE = """() => {
   const problemas = [];
   const alvos = ['.pp-bloco-valor', '.pp-bloco-rotulo', '.pp-bloco-nota', '.pp-principal-valor',
                  '.esc-acum', '.esc-delta', '.esc-mes', '.mc-linha .num', '.mt-cofre',
-                 '.prev-linha .num', '.barra-valor'];
+                 '.prev-linha .num', '.barra-valor', '.sim-delta', '.mov-valor', '.mov-saldo',
+                 '.corte-texto', '.cn-lista .num'];
   for (const sel of alvos) {
     document.querySelectorAll(sel).forEach(el => {
       if (el.scrollWidth > el.clientWidth + 1) {
@@ -295,6 +298,7 @@ def main():
         # O valor é centrado verticalmente contra um corpo de 2 linhas, então não empata com o
         # topo da descrição — o que importa é que ele esteja DENTRO da faixa vertical do corpo
         # (e não numa linha própria embaixo) e à direita dele.
+        # (a 390px; abaixo de 344px o valor volta de propósito para a linha de baixo)
         alinhado = pagina.evaluate("""() => {
           const card = document.querySelector('.conta--meta');
           const corpo = card.querySelector('.conta-corpo').getBoundingClientRect();
@@ -359,8 +363,105 @@ def main():
         pagina.wait_for_load_state("networkidle")
         checa("abre sem quebrar e mostra o estado vazio", pagina.locator(".vazio").count() == 1)
 
+        # ---------------------------------------------- relatório
+        print("\n6b. Relatório: gráfico, sequência e simulador")
+        pagina.evaluate(SEED)
+        pagina.goto(URL + "#/metas/meta-1")
+        pagina.reload()
+        pagina.wait_for_load_state("networkidle")
+        pagina.locator("[data-mes='relatorio']").click()
+        pagina.wait_for_timeout(200)
+
+        checa("o gráfico real × plano desenhou as duas linhas",
+              pagina.locator(".gs-real").count() == 1 and pagina.locator(".gs-ideal").count() == 1)
+        checa("mostra o veredito de adiantado/atrasado", pagina.locator(".rel-veredito").count() == 1)
+        checa("mostra a sequência de dias", pagina.locator(".rel-sequencia").count() == 1)
+        checa("mostra o extrato da campanha inteira",
+              "campanha inteira" in pagina.locator(".tela").inner_text().lower())
+
+        antes_sim = pagina.locator("#simSaida").inner_text()
+        pagina.locator("#simRange").fill("400")
+        pagina.dispatch_event("#simRange", "input")
+        pagina.wait_for_timeout(150)
+        checa("o simulador recalcula ao mover", pagina.locator("#simSaida").inner_text() != antes_sim)
+        checa("o simulador mostra o valor por dia escolhido",
+              "400" in pagina.locator("#simValor").inner_text(),
+              pagina.locator("#simValor").inner_text())
+        checa("nada cortado no simulador", not pagina.evaluate(MEDIR_CORTE),
+              "; ".join(pagina.evaluate(MEDIR_CORTE)))
+
+        # Regressão: um <svg> dentro de .botao sem tamanho ocupa o bloco inteiro e o ícone vira
+        # um cartaz do tamanho do cartão.
+        icone = pagina.evaluate("""() => {
+          const b = document.querySelector('[data-acao="duplicar-meta"] svg');
+          if (!b) return 'sem botão';
+          const r = b.getBoundingClientRect();
+          return Math.round(r.width) + 'x' + Math.round(r.height);
+        }""")
+        checa("o ícone do botão tem tamanho de ícone",
+              icone != "sem botão" and int(icone.split("x")[0]) <= 28, f"{icone}px")
+        pagina.screenshot(path=str(CAPTURAS / "metas-10-relatorio.png"), full_page=True)
+
+        print("\n6c. Duplicar campanha")
+        pagina.locator("[data-acao='duplicar-meta']").click()
+        pagina.wait_for_timeout(300)
+        checa("criou a cópia e abriu nela",
+              "(2)" in pagina.locator(".tela-cabeca--meta").inner_text(),
+              pagina.locator(".tela-cabeca--meta").inner_text())
+        checa("a cópia começa depois do fim da original", pagina.evaluate(
+            "JSON.parse(localStorage.getItem('financas_v1')).metas.length") == 2)
+
+        print("\n6d. Conta que entra sozinha é sinalizada")
+        pagina.evaluate(SEED)
+        pagina.evaluate("""() => {
+          const e = JSON.parse(localStorage.getItem('financas_v1'));
+          e.contas.push({id:'novo1',tipo:'pagar',descricao:'IPVA parcela 2/3',categoria:'casa',
+            valor:600,vencimento:'2026-09-18',status:'pendente',pagoEm:null,recorrente:false,
+            recorrenciaOrigemId:null,parcela:null,criadoEm:'',notas:''});
+          localStorage.setItem('financas_v1', JSON.stringify(e));
+        }""")
+        pagina.goto(URL + "#/metas/meta-1")
+        pagina.reload()
+        pagina.wait_for_load_state("networkidle")
+
+        checa("o aviso de conta nova aparece", pagina.locator(".aviso-novas").count() == 1)
+        texto_aviso = pagina.locator(".aviso-novas").inner_text()
+        checa("o aviso nomeia a conta", "IPVA" in texto_aviso, texto_aviso)
+        checa("o aviso mostra o impacto na sobra", "600" in texto_aviso, texto_aviso)
+        pagina.screenshot(path=str(CAPTURAS / "metas-11-conta-nova.png"), full_page=True)
+
+        pagina.locator("[data-acao='aceitar-novas']").click()
+        pagina.wait_for_timeout(250)
+        checa("depois de aceitar, o aviso some", pagina.locator(".aviso-novas").count() == 0)
+
+        print("\n6e. Mês no vermelho e linha de corte")
+        pagina.evaluate(SEED)
+        pagina.evaluate("""() => {
+          const e = JSON.parse(localStorage.getItem('financas_v1'));
+          e.contas.push({id:'caro1',tipo:'pagar',descricao:'Conserto do carro',categoria:'casa',
+            valor:9000,vencimento:'2026-09-20',status:'pendente',pagoEm:null,recorrente:false,
+            recorrenciaOrigemId:null,parcela:null,criadoEm:'',notas:''});
+          localStorage.setItem('financas_v1', JSON.stringify(e));
+        }""")
+        pagina.goto(URL + "#/metas/meta-1")
+        pagina.reload()
+        pagina.wait_for_load_state("networkidle")
+        pagina.locator("[data-mes='geral']").click()
+        pagina.wait_for_timeout(150)
+        checa("a visão geral avisa o mês no vermelho",
+              pagina.locator(".alerta-vermelho").count() == 1,
+              pagina.locator(".tela").inner_text()[:200])
+
+        pagina.locator(".chip--mes").first.click()   # julho
+        pagina.wait_for_timeout(150)
+        checa("a lista mostra até onde o dinheiro alcança",
+              pagina.locator(".corte").count() >= 1)
+        checa("o rodapé de contas a receber aparece",
+              pagina.locator(".rodape-receber").count() <= 1)  # não há receber no cenário
+
         # ---------------------------------------------- larguras
         print("\n7. Nenhum valor cortado nas 8 larguras")
+        pagina.evaluate(SEED)
         pagina.evaluate(SEED)
         for largura in LARGURAS:
             pagina.set_viewport_size({"width": largura, "height": 900})

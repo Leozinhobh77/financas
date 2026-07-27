@@ -5,9 +5,10 @@ O **mais novo fica sempre no topo** de cada seção.
 
 ## 🔵 Ativos
 
+_Nenhum plano ativo no momento._
+
 | ID | Plano | Status | Progresso | Criado | Atualizado |
 |----|-------|--------|-----------|--------|------------|
-| [0005](0005-2026-07-27-metas.md) | Metas — campanhas de vários meses (caixinha, sobra, cofre) | 🚧 Em andamento | 27 de 35 (77%) | 2026-07-27 | 2026-07-27 |
 
 ## ✅ Concluídos / Arquivados
 
@@ -15,6 +16,7 @@ _O arquivo `.md` fica na pasta `Concluídos/`._
 
 | ID | Plano | Status | Progresso | Concluído em |
 |----|-------|--------|-----------|--------------|
+| [0005](Concluídos/0005-2026-07-27-metas.md) | Metas — campanhas de vários meses (caixinha, sobra, cofre) | ✔️ Concluído | 35 de 35 (100%) | 2026-07-27 |
 | [0004](Concluídos/0004-2026-07-27-painel-do-periodo-nas-listas.md) | Painel do período nas telas de contas | ✔️ Concluído | 7 de 7 (100%) | 2026-07-27 |
 | [0003](Concluídos/0003-2026-07-26-meta-por-dia-e-ritmo-da-semana.md) | Meta por dia + Ritmo da semana + "Veio de antes" | ✔️ Concluído | 7 de 7 (100%) | 2026-07-26 |
 | [0002](Concluídos/0002-2026-07-26-dashboard-avancado-e-repaginada.md) | Dashboard avançado + repaginada visual completa | ✔️ Concluído | 8 de 8 (100%) | 2026-07-26 |

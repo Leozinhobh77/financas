@@ -550,6 +550,183 @@
     };
   }
 
+  // ============================================================
+  // INTELIGÊNCIA — o que o app percebe sozinho
+  // ============================================================
+
+  /** Todos os ids de conta que a meta enxerga hoje, em todos os meses dela. */
+  function idsDasContasDaMeta(meta, contas, outrasMetas) {
+    var ids = [];
+    mesesOrdenados(meta).forEach(function (m) {
+      contasDaMeta(meta, contas, m.ano, m.mes, outrasMetas).forEach(function (c) {
+        if (ids.indexOf(c.id) === -1) ids.push(c.id);
+      });
+    });
+    return ids;
+  }
+
+  /**
+   * Contas que entraram na meta DEPOIS da última fotografia — o efeito colateral de a seleção
+   * ser uma regra viva (RN011). Entrar sozinha é o comportamento certo; entrar EM SILÊNCIO
+   * não é: a sobra do mês encolheria sem o usuário saber por quê.
+   *
+   * Meta sem `snapshotEm` ainda não foi fotografada (criada antes desta versão, ou recém-criada
+   * antes do primeiro registro): devolve vazio para não acusar o acervo inteiro como novidade.
+   */
+  function contasNovas(meta, contas, outrasMetas) {
+    if (!meta.snapshotEm) return [];
+    var conhecidas = {};
+    (meta.contasConhecidas || []).forEach(function (id) { conhecidas[id] = true; });
+
+    var novas = [];
+    mesesOrdenados(meta).forEach(function (m) {
+      contasDaMeta(meta, contas, m.ano, m.mes, outrasMetas).forEach(function (c) {
+        if (!conhecidas[c.id]) novas.push({ conta: c, ano: m.ano, mes: m.mes });
+      });
+    });
+    return novas;
+  }
+
+  /** Agrupa as contas novas por mês, com o quanto elas encolheram a sobra daquele mês. */
+  function impactoDasContasNovas(meta, contas, outrasMetas) {
+    var porMes = {};
+    contasNovas(meta, contas, outrasMetas).forEach(function (n) {
+      var k = n.ano + '-' + n.mes;
+      if (!porMes[k]) porMes[k] = { ano: n.ano, mes: n.mes, contas: [], total: 0 };
+      porMes[k].contas.push(n.conta);
+      porMes[k].total += n.conta.valor;
+    });
+    return Object.keys(porMes).map(function (k) { return porMes[k]; })
+      .sort(function (a, b) { return chaveMes(a.ano, a.mes) - chaveMes(b.ano, b.mes); });
+  }
+
+  /**
+   * Até onde o dinheiro em mãos alcança, pagando por ordem de vencimento. Responde a pergunta
+   * prática de quem está apertado: "com o que eu tenho, quais eu consigo pagar?" — em vez de
+   * deixar o usuário descobrir no susto, na hora do vencimento.
+   */
+  function ateOndeAlcanca(pendentes, saldo) {
+    var ordenadas = (pendentes || []).slice().sort(function (a, b) {
+      return Datas.compararISO(a.vencimento, b.vencimento);
+    });
+    var restante = Math.max(0, saldo);
+    var cobertas = [], descobertas = [], cortada = null, faltam = 0;
+
+    ordenadas.forEach(function (c) {
+      if (cortada) { descobertas.push(c); return; }
+      if (c.valor <= restante) { cobertas.push(c); restante -= c.valor; return; }
+      cortada = c;
+      faltam = c.valor - restante;
+    });
+
+    return {
+      cobertas: cobertas,
+      cortada: cortada,
+      descobertas: descobertas,
+      sobra: restante,
+      faltam: faltam,
+      cobreTudo: !cortada && ordenadas.length > 0,
+      vazio: ordenadas.length === 0
+    };
+  }
+
+  /** Meses da campanha em que as contas passam da caixinha — o mês fecharia no vermelho. */
+  function mesesEmRisco(resumo) {
+    return resumo.meses.filter(function (r) {
+      return !r.semContas && r.sobraPrevista < 0;
+    });
+  }
+
+  /**
+   * Série dia a dia do mês: quanto foi juntado de verdade × a linha reta do plano. É o gráfico
+   * que responde "estou conseguindo acompanhar?" numa olhada, sem ler número nenhum.
+   */
+  function serieAcumulada(meta, ano, mes) {
+    var totalDias = Datas.diasDoMes(ano, mes);
+    var alvo = alvoDoMes(meta, ano, mes);
+    var aportes = movimentosDoMes(meta, ano, mes).filter(function (m) { return m.tipo === 'aporte'; });
+
+    var acumulado = 0;
+    var out = [];
+    for (var d = 1; d <= totalDias; d++) {
+      var iso = Datas.formatarISO(ano, mes, d);
+      aportes.forEach(function (m) { if (m.data === iso) acumulado += m.valor; });
+      out.push({ dia: d, iso: iso, real: acumulado, ideal: alvo * (d / totalDias) });
+    }
+    return out;
+  }
+
+  /**
+   * Dias seguidos lançando. Ontem ainda conta: quem lançou ontem e ainda não lançou hoje não
+   * perdeu a sequência — ela só quebra depois de um dia inteiro em branco.
+   */
+  function sequenciaDeDias(meta, hojeISO) {
+    hojeISO = hojeISO || Datas.hoje();
+    var comAporte = {};
+    (meta.movimentos || []).forEach(function (m) {
+      if (m.tipo === 'aporte') comAporte[m.data] = true;
+    });
+
+    var lancouHoje = !!comAporte[hojeISO];
+    var cursor = lancouHoje ? hojeISO : Datas.somarDias(hojeISO, -1);
+    var n = 0;
+    while (comAporte[cursor]) { n++; cursor = Datas.somarDias(cursor, -1); }
+    return { dias: n, lancouHoje: lancouHoje };
+  }
+
+  /**
+   * "E se eu juntar R$ X por dia?" — projeta o fechamento do mês corrente e o cofre da
+   * campanha. A conta é a diferença entre o que a hipótese junta e o que ainda faltava juntar;
+   * o resto do cofre previsto já está calculado e não se mexe.
+   */
+  function simular(resumo, porDia, hojeISO) {
+    var r = resumo.mesCorrente;
+    if (!r) return null;
+    hojeISO = hojeISO || Datas.hoje();
+
+    var vaiJuntar = Math.max(0, porDia) * r.diasRestantes;
+    var fechaCom = r.juntado + vaiJuntar;
+    var diferenca = vaiJuntar - r.faltaJuntar;
+
+    var viradaISO = null;
+    if (r.descoberto > 0 && porDia > 0) {
+      var d = Math.ceil(r.descoberto / porDia);
+      if (d <= r.diasRestantes) viradaISO = Datas.somarDias(hojeISO, d);
+    }
+
+    return {
+      porDia: porDia,
+      fechaCom: fechaCom,
+      alvo: r.alvo,
+      acimaDoAlvo: fechaCom - r.alvo,
+      cofre: resumo.cofrePrevisto + diferenca,
+      cofreBase: resumo.cofrePrevisto,
+      diferenca: diferenca,
+      jaVirou: r.descoberto <= 0,
+      viradaISO: viradaISO
+    };
+  }
+
+  /** Índice absoluto de mês — permite deslocar uma campanha sem se perder na virada do ano. */
+  function indiceMes(ano, mes) { return ano * 12 + (mes - 1); }
+
+  /**
+   * Os meses de uma cópia da campanha, deslocados para depois do fim dela. Mantém os buracos:
+   * quem pulou dezembro continua pulando o mês equivalente.
+   */
+  function mesesParaDuplicar(meta) {
+    var meses = mesesOrdenados(meta);
+    if (!meses.length) return [];
+    var primeiro = indiceMes(meses[0].ano, meses[0].mes);
+    var ultimo = indiceMes(meses[meses.length - 1].ano, meses[meses.length - 1].mes);
+    var desloc = (ultimo - primeiro) + 1;
+
+    return meses.map(function (m) {
+      var i = indiceMes(m.ano, m.mes) + desloc;
+      return { ano: Math.floor(i / 12), mes: (i % 12) + 1, alvo: m.alvo };
+    });
+  }
+
   /** Rótulo curto de um mês; só mostra o ano quando a campanha cruza a virada do ano. */
   function rotuloMes(ano, mes, mostrarAno) {
     var nome = Datas.nomeMes(mes);
@@ -589,6 +766,17 @@
     // resumos
     resumoDoMes: resumoDoMes,
     resumoDaCampanha: resumoDaCampanha,
+    // inteligência
+    idsDasContasDaMeta: idsDasContasDaMeta,
+    contasNovas: contasNovas,
+    impactoDasContasNovas: impactoDasContasNovas,
+    ateOndeAlcanca: ateOndeAlcanca,
+    mesesEmRisco: mesesEmRisco,
+    serieAcumulada: serieAcumulada,
+    sequenciaDeDias: sequenciaDeDias,
+    simular: simular,
+    mesesParaDuplicar: mesesParaDuplicar,
+    indiceMes: indiceMes,
     // utilidades de mês
     intervaloDoMes: intervaloDoMes,
     estadoDoMes: estadoDoMes,

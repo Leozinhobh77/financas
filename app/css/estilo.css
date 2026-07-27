@@ -724,6 +724,9 @@ main { max-width: 900px; margin: 0 auto; padding: 1.15rem clamp(.9rem, 4vw, 2rem
 
 .form-acoes { display: flex; justify-content: flex-end; gap: .55rem; margin-top: .3rem; }
 .botao { border-radius: var(--r-md); padding: .65rem 1.1rem; font-weight: 680; font-size: .9rem; cursor: pointer; border: 1px solid transparent; transition: filter .15s, border-color .15s; }
+/* Sem isto o SVG dentro de um botão ocupa o bloco inteiro — o ícone vira um cartaz. */
+.botao:has(svg) { display: inline-flex; align-items: center; justify-content: center; gap: .4rem; }
+.botao svg { width: 1.05rem; height: 1.05rem; flex-shrink: 0; }
 .botao-principal { background: var(--accent); color: var(--accent-ink); }
 .botao-principal:hover { filter: brightness(1.08); }
 .botao-fantasma { background: none; border-color: var(--borda); color: var(--ink-2); }
@@ -988,6 +991,15 @@ main { max-width: 900px; margin: 0 auto; padding: 1.15rem clamp(.9rem, 4vw, 2rem
   .conta--meta { grid-template-columns: auto 1fr auto; }
   .conta--meta .conta-direita { grid-column: auto; flex-direction: column; align-items: flex-end; }
 }
+/* item de grid não encolhe abaixo do próprio min-content sem isto — e a descrição é livre */
+.conta--meta .conta-corpo { min-width: 0; }
+.conta--meta .conta-desc { overflow-wrap: anywhere; }
+.conta--meta .conta-meta { flex-wrap: wrap; min-width: 0; }
+/* em tela muito estreita, 3 colunas espremem demais: o valor volta pra linha de baixo */
+@media (max-width: 344px) {
+  .conta--meta { grid-template-columns: auto 1fr; }
+  .conta--meta .conta-direita { grid-column: 1 / -1; align-items: flex-end; }
+}
 .selo--arrastada { color: var(--alerta); background: var(--alerta-tint); }
 .selo--arrastada svg { width: .8rem; height: .8rem; }
 .conta-marca.paga-fora { background: var(--alerta-tint); color: var(--alerta); border-color: var(--alerta); }
@@ -1055,6 +1067,105 @@ main { max-width: 900px; margin: 0 auto; padding: 1.15rem clamp(.9rem, 4vw, 2rem
   .mov .icon-btn { grid-column: 3; grid-row: 1; }
   .mov-direita { grid-column: 2 / -1; align-items: flex-start; }
 }
+
+/* ---- aviso de conta que entrou sozinha ---- */
+.aviso-novas {
+  display: flex; flex-direction: column; gap: .7rem;
+  background: var(--alerta-tint); border: 1px solid color-mix(in srgb, var(--alerta) 35%, transparent);
+  border-radius: var(--r-lg); padding: .9rem 1rem;
+}
+.an-cabeca { display: flex; align-items: center; gap: .4rem; color: var(--alerta); font-size: .9rem; }
+.an-cabeca svg { width: 1.05rem; height: 1.05rem; flex-shrink: 0; }
+.cn-mes { display: flex; flex-direction: column; gap: .25rem; }
+.cn-titulo { font-size: .82rem; font-weight: 700; color: var(--ink); margin: 0; }
+.cn-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .15rem; }
+.cn-lista li {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: .6rem; font-size: .78rem; color: var(--ink-2);
+}
+.cn-lista .num { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cn-resto { font-style: italic; color: var(--ink-3); }
+.cn-sobra { font-size: .78rem; color: var(--ink-2); margin: .15rem 0 0; }
+.cn-sobra s { color: var(--ink-3); }
+.cn-sobra strong { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--alerta); }
+.an-acoes { display: flex; gap: .5rem; justify-content: flex-end; flex-wrap: wrap; }
+
+/* ---- alarme de mês no vermelho ---- */
+.alerta-vermelho {
+  display: flex; align-items: flex-start; gap: .45rem;
+  background: var(--negativo-tint); color: var(--negativo);
+  border-radius: var(--r-md); padding: .7rem .85rem;
+  font-size: .82rem; line-height: 1.45;
+}
+.alerta-vermelho svg { width: 1.05rem; height: 1.05rem; flex-shrink: 0; margin-top: .1rem; }
+.alerta-vermelho strong { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+.rodape-receber {
+  display: flex; align-items: center; gap: .35rem; flex-wrap: wrap;
+  font-size: .78rem; color: var(--ink-3); margin: 0;
+}
+.rodape-receber svg { width: .95rem; height: .95rem; color: var(--positivo); flex-shrink: 0; }
+.rodape-receber strong { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--positivo); }
+
+/* ---- linha de corte: até onde o dinheiro alcança ---- */
+/*
+ * Empilhado (linha / texto / linha) em vez de tudo numa fileira: o texto leva valor em
+ * dinheiro e, com `nowrap` numa fileira, esticava a PÁGINA inteira em 320px. Aqui ele pode
+ * quebrar sem empurrar nada.
+ */
+.corte { display: flex; flex-direction: column; align-items: stretch; gap: .3rem; margin: .35rem 0; }
+.corte-linha { height: 2px; background: repeating-linear-gradient(90deg, var(--negativo) 0 6px, transparent 6px 11px); }
+.corte-texto {
+  font-size: .72rem; font-weight: 700; color: var(--negativo); text-align: center;
+  text-transform: uppercase; letter-spacing: .02em; line-height: 1.35;
+}
+.corte--ok {
+  display: flex; align-items: center; gap: .35rem;
+  font-size: .8rem; color: var(--positivo); margin: 0;
+}
+.corte--ok svg { width: .95rem; height: .95rem; flex-shrink: 0; }
+.corte--ok strong { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+/* ---- relatório ---- */
+.gs-caixa { display: flex; flex-direction: column; gap: .35rem; }
+.gs { width: 100%; height: auto; display: block; overflow: visible; }
+.gs-area { fill: color-mix(in srgb, var(--accent) 14%, transparent); stroke: none; }
+.gs-real { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+.gs-ideal { fill: none; stroke: var(--ink-3); stroke-width: 1.5; stroke-dasharray: 4 4; }
+.gs-hoje { fill: var(--accent); stroke: var(--superficie); stroke-width: 2; }
+.gs-eixo { display: flex; justify-content: space-between; font-size: .68rem; color: var(--ink-3); }
+.leg-amostra--linha {
+  width: 14px; height: 0; border-top: 2px dashed var(--ink-3); border-radius: 0; margin-left: .5rem;
+}
+
+.rel-veredito, .sim-nota {
+  display: flex; align-items: flex-start; gap: .4rem;
+  font-size: .82rem; line-height: 1.45; color: var(--ink-2);
+  background: var(--superficie-2); border-radius: var(--r-md); padding: .6rem .75rem; margin: 0;
+}
+.rel-veredito svg, .sim-nota svg { width: 1rem; height: 1rem; flex-shrink: 0; margin-top: .12rem; }
+.rel-veredito strong, .sim-nota strong { color: var(--ink); font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.rel-sequencia {
+  font-size: .85rem; color: var(--ink-2); margin: 0;
+  border: 1px dashed var(--borda); border-radius: var(--r-md); padding: .55rem .75rem; text-align: center;
+}
+.rel-sequencia.ativa { border-style: solid; border-color: var(--alerta); background: var(--alerta-tint); color: var(--ink); }
+
+.sim-controle { display: flex; align-items: center; gap: .7rem; }
+.sim-controle input[type=range] { flex: 1; min-width: 0; accent-color: var(--accent); }
+.sim-controle output {
+  font-family: var(--mono); font-variant-numeric: tabular-nums;
+  font-weight: 750; font-size: .88rem; white-space: nowrap; color: var(--accent);
+}
+.sim-saida { display: flex; flex-direction: column; gap: .35rem; }
+.sim-saida .prev-linha { align-items: flex-start; }
+.sim-saida .prev-linha > span:first-child { flex: 1 1 auto; min-width: 0; }
+/*
+ * `.prev-linha .num` é `nowrap` (valor de dinheiro não quebra) e a nota herdava isso, saindo
+ * pela direita da tela. A nota é texto comum: pode e deve quebrar.
+ */
+.sim-saida .prev-linha .num { text-align: right; min-width: 0; white-space: normal; }
+.sim-delta { font-style: normal; font-size: .68rem; opacity: .85; display: block; white-space: normal; }
 
 /* ---- assistente de criação ---- */
 .atalho-total { display: flex; gap: .5rem; }

@@ -269,7 +269,11 @@
 
     return (
       '<div class="chips chips--meses">' +
+        // Geral e Relatório juntos à esquerda: são as duas visões que não são de mês, e no fim
+        // da régua o Relatório ficava escondido atrás da rolagem horizontal.
         '<button type="button" class="chip' + (ativo === 'geral' ? ' ativo' : '') + '" data-mes="geral">Geral</button>' +
+        '<button type="button" class="chip' + (ativo === 'relatorio' ? ' ativo' : '') +
+          '" data-mes="relatorio">Relatório</button>' +
         chips +
       '</div>'
     );
@@ -530,7 +534,7 @@
     );
   }
 
-  function listaContasDaMeta(r, meta, hojeISO) {
+  function listaContasDaMeta(r, meta, hojeISO, alcance) {
     if (!r.contas.todas.length) {
       return (
         '<section class="cartao">' +
@@ -562,9 +566,14 @@
         chamada +
         '<div class="lista">' +
           r.contas.todas.map(function (c) {
-            return cardContaDaMeta(c, meta, hojeISO, !!arrastadas[c.id]);
+            // A linha de corte entra IMEDIATAMENTE ANTES da conta em que o dinheiro acaba —
+            // é essa vizinhança que responde "qual é a conta problemática" num relance.
+            var antes = (alcance && alcance.cortada && alcance.cortada.id === c.id)
+              ? linhaDeCorte(alcance, r.saldo) : '';
+            return antes + cardContaDaMeta(c, meta, hojeISO, !!arrastadas[c.id]);
           }).join('') +
         '</div>' +
+        ((alcance && alcance.cobreTudo) ? linhaDeCorte(alcance, r.saldo) : '') +
       '</section>'
     );
   }
@@ -640,7 +649,282 @@
     );
   }
 
+  // ============================================================
+  // INTELIGÊNCIA NA TELA
+  // ============================================================
+
+  /**
+   * Conta que entrou sozinha na meta (RN011) tem que aparecer. O aviso diz o tamanho exato do
+   * estrago na sobra daquele mês — e traz a ação junto, senão vira ruído que se ignora.
+   */
+  function avisoContasNovas(impacto, resumo, comAno) {
+    if (!impacto.length) return '';
+
+    var blocos = impacto.map(function (g) {
+      var mesR = resumo.meses.filter(function (r) { return r.ano === g.ano && r.mes === g.mes; })[0];
+      var antes = mesR ? mesR.sobraPrevista + g.total : null;
+      var linhas = g.contas.slice(0, 4).map(function (c) {
+        return '<li><span>' + esc(c.descricao) + '</span><span class="num">' +
+               Formatar.dinheiro(c.valor) + '</span></li>';
+      }).join('');
+      var resto = g.contas.length > 4
+        ? '<li class="cn-resto"><span>e mais ' + (g.contas.length - 4) + '</span><span></span></li>' : '';
+
+      return (
+        '<div class="cn-mes">' +
+          '<p class="cn-titulo">' + esc(Formatar.capitalizar(Datas.nomeMes(g.mes))) +
+            (comAno ? ' de ' + g.ano : '') + ' · ' + Formatar.dinheiro(g.total) + '</p>' +
+          '<ul class="cn-lista">' + linhas + resto + '</ul>' +
+          (antes !== null
+            ? '<p class="cn-sobra">Sobra do mês: <s>' + Formatar.dinheiro(antes) + '</s> → ' +
+              '<strong>' + Formatar.dinheiro(mesR.sobraPrevista) + '</strong></p>'
+            : '') +
+        '</div>'
+      );
+    }).join('');
+
+    var total = impacto.reduce(function (s, g) { return s + g.contas.length; }, 0);
+    return (
+      '<section class="aviso-novas">' +
+        '<div class="an-cabeca">' + Icones.get('alerta') +
+          '<strong>' + (total === 1 ? 'Entrou uma conta nova na meta' :
+                        'Entraram ' + total + ' contas novas na meta') + '</strong>' +
+        '</div>' +
+        blocos +
+        '<div class="an-acoes">' +
+          '<button type="button" class="botao botao-fantasma botao-compacto"' +
+            ' data-acao="tirar-novas">Tirar da meta</button>' +
+          '<button type="button" class="botao botao-principal botao-compacto"' +
+            ' data-acao="aceitar-novas">Ok, entendi</button>' +
+        '</div>' +
+      '</section>'
+    );
+  }
+
+  /** O alarme que importa: as contas do mês passaram da caixinha. */
+  function alertaVermelho(r) {
+    if (r.semContas || r.sobraPrevista >= 0) return '';
+    return (
+      '<div class="alerta-vermelho">' + Icones.get('alerta') +
+        '<span class="ms-texto">As contas de <strong>' + esc(Datas.nomeMes(r.mes)) +
+        '</strong> (' + Formatar.dinheiro(r.contas.total) + ') passaram da sua caixinha (' +
+        Formatar.dinheiro(r.alvo) + '). Nesse mês você fecharia <strong>' +
+        Formatar.dinheiro(Math.abs(r.sobraPrevista)) + '</strong> no vermelho — aumente a ' +
+        'caixinha ou tire alguma conta.</span>' +
+      '</div>'
+    );
+  }
+
+  /** Rodapé discreto: o que entra no mês. Não mexe em cálculo nenhum — é só contexto. */
+  function rodapeReceber(total, qtd, mes) {
+    if (!qtd) return '';
+    return (
+      '<p class="rodape-receber">' + Icones.get('receber') +
+        'Em ' + esc(Datas.nomeMes(mes)) + ' entram <strong>' + Formatar.dinheiro(total) +
+        '</strong> em ' + qtd + (qtd === 1 ? ' conta a receber' : ' contas a receber') + '.' +
+      '</p>'
+    );
+  }
+
+  /** A linha de corte: com o que há em mãos, até onde dá para pagar. */
+  function linhaDeCorte(alcance, saldo) {
+    if (alcance.vazio || alcance.cobreTudo) {
+      if (alcance.vazio) return '';
+      return '<p class="corte corte--ok">' + Icones.get('check') +
+             'O que você tem em mãos cobre todas as contas deste mês, e ainda sobram <strong>' +
+             Formatar.dinheiro(alcance.sobra) + '</strong>.</p>';
+    }
+    return (
+      '<div class="corte">' +
+        '<span class="corte-linha"></span>' +
+        '<span class="corte-texto">seus ' + Formatar.dinheiro(saldo) + ' acabam aqui' +
+          (alcance.sobra > 0 ? ' · sobram ' + Formatar.dinheiro(alcance.sobra) : '') +
+        '</span>' +
+        '<span class="corte-linha"></span>' +
+      '</div>'
+    );
+  }
+
+  // ============================================================
+  // RELATÓRIO
+  // ============================================================
+
+  /**
+   * Real × ideal, dia a dia. Duas linhas: a reta do plano e a sua de verdade. Se a sua está
+   * acima, você está adiantado — não precisa ler número nenhum para saber.
+   */
+  function graficoSerie(serie, hojeISO) {
+    if (!serie.length) return '';
+    var L = 300, A = 110;
+    var maior = serie.reduce(function (m, p) { return Math.max(m, p.real, p.ideal); }, 1);
+
+    function ponto(i, v) {
+      var x = serie.length > 1 ? (i / (serie.length - 1)) * L : 0;
+      var y = A - (v / maior) * A;
+      return x.toFixed(1) + ',' + y.toFixed(1);
+    }
+
+    var linhaIdeal = serie.map(function (p, i) { return ponto(i, p.ideal); }).join(' ');
+    var linhaReal = serie.map(function (p, i) { return ponto(i, p.real); }).join(' ');
+    var area = '0,' + A + ' ' + linhaReal + ' ' + L + ',' + A;
+
+    var iHoje = -1;
+    serie.forEach(function (p, i) { if (p.iso === hojeISO) iHoje = i; });
+    var marcaHoje = '';
+    if (iHoje >= 0) {
+      var xy = ponto(iHoje, serie[iHoje].real).split(',');
+      marcaHoje = '<circle class="gs-hoje" cx="' + xy[0] + '" cy="' + xy[1] + '" r="4"/>';
+    }
+
+    return (
+      '<div class="gs-caixa">' +
+        '<svg class="gs" viewBox="0 0 ' + L + ' ' + A + '" role="img"' +
+          ' aria-label="Quanto foi juntado por dia, comparado com o plano">' +
+          '<polygon class="gs-area" points="' + area + '"/>' +
+          '<polyline class="gs-ideal" points="' + linhaIdeal + '"/>' +
+          '<polyline class="gs-real" points="' + linhaReal + '"/>' +
+          marcaHoje +
+        '</svg>' +
+        '<div class="gs-eixo"><span>dia 1</span><span>dia ' + serie.length + '</span></div>' +
+        '<p class="esc-legenda">' +
+          '<span class="leg-amostra leg-amostra--cheia"></span>o que você juntou' +
+          '<span class="leg-amostra leg-amostra--linha"></span>o plano' +
+        '</p>' +
+      '</div>'
+    );
+  }
+
+  function telaRelatorio(meta, resumo, hojeISO) {
+    var r = resumo.mesCorrente || resumo.meses[resumo.meses.length - 1];
+    var seq = Metas.sequenciaDeDias(meta, hojeISO);
+
+    var acompanhamento = '';
+    if (r) {
+      var serie = Metas.serieAcumulada(meta, r.ano, r.mes);
+      var hoje = serie.filter(function (p) { return p.iso === hojeISO; })[0];
+      var diferenca = hoje ? (hoje.real - hoje.ideal) : 0;
+      acompanhamento =
+        '<section class="cartao">' +
+          '<div class="secao-cabeca">' +
+            '<h2 class="secao-titulo">Você está acompanhando?</h2>' +
+            '<span class="pp-qtd">' + esc(Formatar.capitalizar(Datas.nomeMes(r.mes))) + '</span>' +
+          '</div>' +
+          graficoSerie(serie, hojeISO) +
+          (hoje
+            ? '<p class="rel-veredito ' + (diferenca >= 0 ? 'sem-ok' : 'sem-atencao') + '">' +
+                Icones.get(diferenca >= 0 ? 'subir' : 'descer') +
+                '<span class="ms-texto">Você está <strong>' +
+                Formatar.dinheiro(Math.abs(diferenca)) + '</strong> ' +
+                (diferenca >= 0 ? 'adiantado' : 'atrasado') + ' em relação ao plano.</span></p>'
+            : '') +
+          '<p class="rel-sequencia' + (seq.dias > 0 ? ' ativa' : '') + '">' +
+            (seq.dias > 0
+              ? '🔥 <strong>' + seq.dias + (seq.dias === 1 ? ' dia' : ' dias seguidos') +
+                '</strong> lançando' + (seq.lancouHoje ? '' : ' — não deixe quebrar hoje')
+              : 'Nenhuma sequência ativa. Lance hoje para começar uma.') +
+          '</p>' +
+        '</section>';
+    }
+
+    var simulador = resumo.mesCorrente ? blocoSimulador(resumo) : '';
+    return acompanhamento + simulador + extratoDaCampanha(meta) + blocoDuplicar(meta);
+  }
+
+  /** O simulador começa no ritmo que a meta já pede — o ponto de partida honesto. */
+  function blocoSimulador(resumo) {
+    var r = resumo.mesCorrente;
+    var sugerido = Math.max(10, Math.round(r.metaPorDia || (r.alvo / r.duracao)));
+    var maximo = Math.max(sugerido * 3, 100);
+    return (
+      '<section class="cartao" id="simulador" data-sugerido="' + sugerido + '">' +
+        '<div class="secao-cabeca"><h2 class="secao-titulo">E se eu juntar…</h2></div>' +
+        '<div class="sim-controle">' +
+          '<input type="range" id="simRange" min="0" max="' + maximo + '" step="5" value="' + sugerido + '">' +
+          '<output id="simValor" class="num">' + Formatar.dinheiro(sugerido) + '/dia</output>' +
+        '</div>' +
+        '<div id="simSaida" class="sim-saida"></div>' +
+      '</section>'
+    );
+  }
+
+  function resultadoSimulacao(s, resumo) {
+    if (!s) return '';
+    var linhas = [
+      { rot: 'o mês fecha com', val: Formatar.dinheiro(s.fechaCom),
+        nota: (s.acimaDoAlvo >= 0 ? '+' : '') + Formatar.dinheiro(s.acimaDoAlvo) + ' vs. a caixinha',
+        classe: s.acimaDoAlvo >= 0 ? 'v-positivo' : 'v-negativo' },
+      { rot: 'a campanha fecha com', val: Formatar.dinheiro(s.cofre),
+        nota: (s.diferenca >= 0 ? '+' : '') + Formatar.dinheiro(s.diferenca) + ' vs. o previsto',
+        classe: s.diferenca >= 0 ? 'v-positivo' : 'v-negativo' }
+    ];
+    var virada = s.jaVirou
+      ? '<p class="sim-nota sem-ok">' + Icones.get('sol_nascente') +
+        '<span class="ms-texto">As contas do mês já estão garantidas.</span></p>'
+      : (s.viradaISO
+        ? '<p class="sim-nota">' + Icones.get('sol_nascente') +
+          '<span class="ms-texto">Nesse ritmo, as contas ficam garantidas em <strong>' +
+          Formatar.dataCurta(s.viradaISO) + '</strong>.</span></p>'
+        : '<p class="sim-nota sem-atencao">' + Icones.get('alerta') +
+          '<span class="ms-texto">Nesse ritmo as contas do mês não ficam cobertas.</span></p>');
+
+    return linhas.map(function (l) {
+      return '<div class="prev-linha"><span>' + l.rot + '</span>' +
+             '<span class="num ' + l.classe + '">' + l.val +
+             ' <em class="sim-delta">' + l.nota + '</em></span></div>';
+    }).join('') + virada;
+  }
+
+  function extratoDaCampanha(meta) {
+    var linhas = Metas.extrato(meta);
+    if (!linhas.length) return '';
+    var totais = { aporte: 0, retirada: 0, baixa: 0 };
+    linhas.forEach(function (l) { totais[l.movimento.tipo] += l.movimento.valor; });
+
+    return (
+      '<section class="cartao">' +
+        '<div class="secao-cabeca">' +
+          '<h2 class="secao-titulo">A campanha inteira</h2>' +
+          '<span class="pp-qtd">' + linhas.length + ' lançamentos</span>' +
+        '</div>' +
+        '<div class="prev-linha"><span>total juntado</span><span class="num v-positivo">' +
+          Formatar.dinheiro(totais.aporte) + '</span></div>' +
+        '<div class="prev-linha"><span>pago pela caixinha</span><span class="num">' +
+          Formatar.dinheiro(totais.baixa) + '</span></div>' +
+        '<div class="prev-linha"><span>retirado</span><span class="num">' +
+          Formatar.dinheiro(totais.retirada) + '</span></div>' +
+        '<div class="prev-linha prev-linha--forte"><span>saldo em mãos</span>' +
+          '<span class="num">' + Formatar.dinheiro(linhas[linhas.length - 1].acumulado) +
+        '</span></div>' +
+      '</section>'
+    );
+  }
+
+  function blocoDuplicar(meta) {
+    var novos = Metas.mesesParaDuplicar(meta);
+    if (!novos.length) return '';
+    var a = novos[0], b = novos[novos.length - 1];
+    var faixa = novos.length === 1
+      ? nomeMesCurto(a.ano, a.mes, true)
+      : nomeMesCurto(a.ano, a.mes, true) + ' a ' + nomeMesCurto(b.ano, b.mes, true);
+    return (
+      '<section class="cartao">' +
+        '<div class="secao-cabeca"><h2 class="secao-titulo">Repetir esta meta</h2></div>' +
+        '<p class="esc-legenda">Cria uma cópia com os mesmos valores e categorias, ' +
+          'para <strong>' + esc(faixa) + '</strong>.</p>' +
+        '<button type="button" class="botao botao-fantasma" data-acao="duplicar-meta"' +
+          ' data-id="' + meta.id + '">' + Icones.get('repetir') + 'Criar a próxima campanha</button>' +
+      '</section>'
+    );
+  }
+
   global.RenderMetas = {
+    avisoContasNovas: avisoContasNovas,
+    alertaVermelho: alertaVermelho,
+    rodapeReceber: rodapeReceber,
+    linhaDeCorte: linhaDeCorte,
+    telaRelatorio: telaRelatorio,
+    resultadoSimulacao: resultadoSimulacao,
+    graficoSerie: graficoSerie,
     cardContaDaMeta: cardContaDaMeta,
     listaContasDaMeta: listaContasDaMeta,
     extratoDoMes: extratoDoMes,

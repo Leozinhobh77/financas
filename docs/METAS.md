@@ -248,6 +248,58 @@ Apagar ou editar a conta depois não deixa o extrato órfão nem mentindo (RN019
 
 ---
 
+## 10b. O que o app percebe sozinho
+
+**Conta nova entrou.** Como a seleção é uma regra viva, conta nova numa categoria marcada entra
+sozinha — inclusive nos meses futuros. Entrar em silêncio seria péssimo, então:
+
+```
+⚠️  Entraram 2 contas novas na meta
+    SETEMBRO · R$ 850,00
+      IPVA parcela 2/3            R$ 600,00
+      Dentista                    R$ 250,00
+    Sobra do mês: R̶$̶ ̶2̶.̶4̶0̶0̶ → R$ 1.550,00
+                  [ Tirar da meta ]  [ Ok, entendi ]
+```
+
+Conta que já tem dinheiro movimentado **não sai** por "Tirar da meta" — o aviso diz quantas
+ficaram e por quê (RN017).
+
+**Mês no vermelho.** Quando as contas passam da caixinha, o alarme aparece no mês **e** na visão
+geral: *"outubro fecharia R$ 600 no vermelho — aumente a caixinha ou tire alguma conta"*.
+
+**Até onde o dinheiro alcança.** Na lista de contas, uma linha de corte por ordem de vencimento:
+
+```
+  ○ Seguro           25/07      460
+ ━━━━━━━ SEUS R$ 4.000 ACABAM AQUI · SOBRAM R$ 100 ━━━━━━━
+  ○ Fatura Nubank    28/07    2.100    ✗ faltam 2.000
+```
+
+**O que entra no mês.** Um rodapé discreto com as contas a receber do mês. Não mexe em cálculo
+nenhum — é o contexto que responde "dá pra juntar 9.000 esse mês?".
+
+---
+
+## 10c. O relatório
+
+Três coisas, na aba **Relatório**:
+
+**O gráfico.** Duas linhas: a reta do plano e a sua de verdade, dia a dia. Se a sua está acima,
+você está adiantado — não precisa ler número nenhum. Abaixo, o veredito em reais.
+
+**A sequência.** 🔥 dias seguidos lançando. **Ontem ainda conta**: a sequência só quebra depois
+de um dia inteiro em branco — senão ela morreria toda manhã, antes do primeiro lançamento.
+
+**O simulador.** Arraste e veja: *"se eu juntar R$ 400/dia, o mês fecha com R$ 12.400 e a
+campanha com R$ 15.400 no cofre"*. É o mesmo número que o motor calcula pelo caminho normal —
+os dois caminhos são testados um contra o outro.
+
+E no fim, **repetir a meta**: uma cópia começando logo depois do fim desta, com os mesmos
+valores e categorias. Mês pulado continua pulado.
+
+---
+
 ## 11. Uma limitação, dita na cara
 
 **O app não sabe o seu saldo no banco.** O cofre é um **registro do que você declarar**, não um

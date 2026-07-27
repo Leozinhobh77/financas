@@ -463,20 +463,38 @@
       estado.mesAtivo = r.mesCorrente ? (r.mesCorrente.ano + '-' + r.mesCorrente.mes) : 'geral';
     }
 
+    var hoje = Datas.hoje();
+    var impacto = Metas.impactoDasContasNovas(meta, Store.listarContas(), Store.listarMetas());
+    var aviso = RenderMetas.avisoContasNovas(impacto, r, Metas.campanhaCruzaAno(meta));
+
     var corpo;
     if (estado.mesAtivo === 'geral') {
-      corpo = RenderMetas.heroiCofre(r) + RenderMetas.escadaDoCofre(r) + RenderMetas.graficoCofre(r);
+      corpo = RenderMetas.heroiCofre(r) + resumoDeRiscos(r) +
+              RenderMetas.escadaDoCofre(r) + RenderMetas.graficoCofre(r);
+    } else if (estado.mesAtivo === 'relatorio') {
+      corpo = RenderMetas.telaRelatorio(meta, r, hoje);
     } else {
       var mes = r.meses.filter(function (m) { return m.ano + '-' + m.mes === estado.mesAtivo; })[0];
       if (!mes) { estado.mesAtivo = 'geral'; telaMeta(id); return; }
-      corpo = RenderMetas.painelDoMes(mes, meta) +
+
+      // "Até onde o dinheiro alcança" e o rodapé do que entra no mês — contexto, não cálculo.
+      var alcance = Metas.ateOndeAlcanca(mes.contas.pendentes, mes.saldo);
+      var iv = Metas.intervaloDoMes(mes.ano, mes.mes);
+      var receber = Store.listarContas().filter(function (c) {
+        return c.tipo === 'receber' && Datas.estaEntre(c.vencimento, iv.inicio, iv.fim);
+      });
+
+      corpo = RenderMetas.alertaVermelho(mes) +
+        RenderMetas.painelDoMes(mes, meta) +
+        RenderMetas.rodapeReceber(
+          receber.reduce(function (s, c) { return s + c.valor; }, 0), receber.length, mes.mes) +
         '<div class="meta-acoes">' +
           '<button class="botao botao-principal" data-acao="novo-aporte" data-id="' + meta.id + '">' +
             Icones.get('subir') + 'Adicionar dinheiro</button>' +
           '<button class="botao botao-fantasma" data-acao="nova-retirada" data-id="' + meta.id + '">' +
             Icones.get('descer') + 'Retirar</button>' +
         '</div>' +
-        RenderMetas.listaContasDaMeta(mes, meta, Datas.hoje()) +
+        RenderMetas.listaContasDaMeta(mes, meta, hoje, alcance) +
         RenderMetas.extratoDoMes(meta, mes.ano, mes.mes);
     }
 
@@ -495,8 +513,107 @@
             Icones.get('excluir') + '</button>' +
         '</div>' +
         RenderMetas.seletorMeses(r, estado.mesAtivo) +
+        aviso +
         corpo +
       '</div>';
+
+    if (estado.mesAtivo === 'relatorio') ligarSimulador(r);
+  }
+
+  /** Na visão geral, um resumo dos meses que fechariam no vermelho — antes de abrir cada um. */
+  function resumoDeRiscos(r) {
+    var risco = Metas.mesesEmRisco(r);
+    if (!risco.length) return '';
+    var comAno = Metas.campanhaCruzaAno(r.meta);
+    var nomes = risco.map(function (m) {
+      return RenderMetas.nomeMesCurto(m.ano, m.mes, comAno);
+    }).join(', ');
+    var total = risco.reduce(function (s, m) { return s + Math.abs(m.sobraPrevista); }, 0);
+
+    return (
+      '<div class="alerta-vermelho">' + Icones.get('alerta') +
+        '<span class="ms-texto">' +
+          (risco.length === 1 ? '<strong>' + Render.esc(nomes) + '</strong> fecharia no vermelho'
+                              : '<strong>' + Render.esc(nomes) + '</strong> fechariam no vermelho') +
+          ': as contas passam da caixinha em <strong>' + Formatar.dinheiro(total) + '</strong>.' +
+        '</span>' +
+      '</div>'
+    );
+  }
+
+  /** O simulador recalcula na hora, sem re-render da tela — o arraste tem que ser fluido. */
+  function ligarSimulador(resumo) {
+    var range = document.getElementById('simRange');
+    if (!range) return;
+    var saida = document.getElementById('simSaida');
+    var valor = document.getElementById('simValor');
+
+    function atualizar() {
+      var porDia = Number(range.value);
+      valor.textContent = Formatar.dinheiro(porDia) + '/dia';
+      saida.innerHTML = RenderMetas.resultadoSimulacao(
+        Metas.simular(resumo, porDia, Datas.hoje()), resumo);
+    }
+    range.addEventListener('input', atualizar);
+    atualizar();
+  }
+
+  // ---- contas que entram sozinhas na meta (RN011 → RN020) ----
+  function fotografarContas(metaId) {
+    var meta = Store.obterMeta(metaId);
+    if (!meta) return;
+    Store.atualizarMeta(metaId, {
+      contasConhecidas: Metas.idsDasContasDaMeta(meta, Store.listarContas(), Store.listarMetas()),
+      snapshotEm: new Date().toISOString()
+    });
+  }
+
+  function aceitarContasNovas(metaId) {
+    fotografarContas(metaId);
+    toast('Anotado. As contas novas seguem na meta.');
+    renderRota();
+  }
+
+  /** Tira da meta só as contas que ACABARAM de entrar — o resto da seleção continua igual. */
+  function tirarContasNovas(metaId) {
+    var meta = Store.obterMeta(metaId);
+    if (!meta) return;
+    var novas = Metas.contasNovas(meta, Store.listarContas(), Store.listarMetas());
+    if (!novas.length) return;
+
+    var excluidas = (meta.selecao.excluidas || []).slice();
+    var comMovimento = 0;
+    novas.forEach(function (n) {
+      // RN017: conta com dinheiro movimentado não sai por filtro — sairia sem devolver nada.
+      if (Metas.temMovimentoDaConta(meta, n.conta.id)) { comMovimento++; return; }
+      if (excluidas.indexOf(n.conta.id) === -1) excluidas.push(n.conta.id);
+    });
+
+    Store.atualizarMeta(metaId, { selecao: Object.assign({}, meta.selecao, { excluidas: excluidas }) });
+    fotografarContas(metaId);
+    toast(comMovimento > 0
+      ? (novas.length - comMovimento) + ' tiradas. ' + comMovimento +
+        ' já tinham dinheiro movimentado e ficaram.'
+      : novas.length + (novas.length === 1 ? ' conta tirada da meta.' : ' contas tiradas da meta.'));
+    renderRota();
+  }
+
+  function duplicarMeta(metaId) {
+    var meta = Store.obterMeta(metaId);
+    if (!meta) return;
+    var meses = Metas.mesesParaDuplicar(meta);
+    if (!meses.length) return;
+
+    var nova = Metas.novaMeta({
+      nome: meta.nome + ' (2)',
+      meses: meses,
+      categorias: (meta.selecao.categorias || []).slice()
+    });
+    Store.adicionarMeta(nova);
+    fotografarContas(nova.id);
+    toast('Campanha criada. Confira os valores e o nome.');
+    estado.mesAtivo = null;
+    irPara('metas/' + nova.id);
   }
 
   // ---- assistente de criação/edição da meta ----
@@ -644,6 +761,8 @@
 
     var nova = Metas.novaMeta({ nome: nome, meses: meses, categorias: cats });
     Store.adicionarMeta(nova);
+    // Fotografa na criação: sem isso, a meta acusaria o acervo inteiro como "conta nova".
+    fotografarContas(nova.id);
     toast('Meta criada.');
     fecharModalMeta();
     estado.mesAtivo = null;
@@ -930,6 +1049,9 @@
       else if (acao === 'meta-abater') abaterDaMeta(estado.metaAberta, id);
       else if (acao === 'meta-desabater') desabaterDaMeta(estado.metaAberta, id);
       else if (acao === 'excluir-movimento') excluirMovimento(estado.metaAberta, id);
+      else if (acao === 'aceitar-novas') aceitarContasNovas(estado.metaAberta);
+      else if (acao === 'tirar-novas') tirarContasNovas(estado.metaAberta);
+      else if (acao === 'duplicar-meta') duplicarMeta(id);
     });
 
     // Chips de mês dentro de uma meta

@@ -28,6 +28,11 @@
 | RN017 — Dinheiro movimentado não sai por mudança de filtro | `testes/motor.teste.js` · casos `RN017-*` |
 | RN018 — Desfazer o pagamento devolve o dinheiro à caixinha | `testes/motor.teste.js` · `RN018-*` + `test_metas.py` (4f) |
 | RN019 — Movimento guarda fotografia da conta | `testes/motor.teste.js` · casos `RN019-*` |
+| RN020 — Conta que entra sozinha na meta é sinalizada | `testes/motor.teste.js` · `RN020-*` + `test_metas.py` (6d) |
+| RN021 — Mês cujas contas passam da caixinha é alertado | `testes/motor.teste.js` · `RN021-*` + `test_metas.py` (6e) |
+| RN022 — Até onde o dinheiro em mãos alcança | `testes/motor.teste.js` · casos `RN022-*` |
+| RN023 — Relatório: série real × plano, sequência e simulador | `testes/motor.teste.js` · `RN023-*` + `test_metas.py` (6b) |
+| RN024 — Duplicar campanha desloca os meses mantendo os buracos | `testes/motor.teste.js` · `RN024-*` |
 
 Meta: 100%. `/harness doctor` reprova regra sem teste em projeto T2+.
 
@@ -152,6 +157,90 @@ passa a cobrir tudo que falta pagar. Se já cobre, está virado e não há data 
 - 7.000 em mãos com 6.000 a pagar → **já virou**, sem data
 
 **Teste:** `motor.teste.js` · `RN015-1..3`.
+**Procedência:** enriquecimento aprovado na auditoria de 2026-07-27.
+
+---
+
+### RN020 — Conta que entra sozinha na meta é sinalizada
+**Regra:** como a seleção é uma regra viva (RN011), conta nova numa categoria marcada **entra
+sozinha**. Entrar é o comportamento certo; entrar **em silêncio** não é. A meta guarda uma
+fotografia (`contasConhecidas` + `snapshotEm`) e avisa o que apareceu depois, **com o tamanho
+exato do estrago na sobra daquele mês** e duas saídas: *Tirar da meta* ou *Ok, entendi*.
+
+- Meta **sem `snapshotEm`** ainda não foi fotografada → não acusa nada. Sem essa trava, toda
+  meta criada antes desta versão acusaria o acervo inteiro como novidade.
+- *Tirar da meta* respeita a **RN017**: conta que já tem dinheiro movimentado **não sai**, e o
+  aviso diz quantas ficaram e por quê.
+
+**Exemplos:**
+- Meta marca `casa`; entra um IPVA de R$ 600 em outubro → aviso, e a sobra de outubro cai de
+  R$ 2.400 para **R$ 1.800**
+- Duas contas novas no mesmo mês vêm agrupadas, com o total (R$ 850) e a sobra antes → depois
+
+**Teste:** `motor.teste.js` · `RN020-1..3` + `test_metas.py` (6d).
+**Procedência:** pedido do usuário — "esse mês de agosto já tem contas, mas apareceu uma conta
+do novo, aí ela vai aparecer lá; aí vai ter uma caixinha de seleção".
+
+---
+
+### RN021 — Mês cujas contas passam da caixinha é alertado
+**Regra:** quando `contas > caixinha` num mês (sobra prevista negativa), o app alerta **no mês**
+e **na visão geral**, dizendo de quanto seria o vermelho. Mês **sem contas lançadas** nunca
+entra na lista de risco — ausência de dado não é risco.
+
+**Exemplo:** outubro com R$ 9.600 de conta contra caixinha de R$ 9.000 → *"fecharia R$ 600 no
+vermelho — aumente a caixinha ou tire alguma conta"*.
+
+**Teste:** `motor.teste.js` · `RN021-1..2` + `test_metas.py` (6e).
+**Procedência:** enriquecimento aprovado na auditoria de 2026-07-27.
+
+---
+
+### RN022 — Até onde o dinheiro em mãos alcança
+**Regra:** com o saldo da campanha, o app percorre as contas pendentes **por ordem de
+vencimento** e marca onde o dinheiro acaba: quais dá para pagar, qual é a conta cortada e
+quanto falta nela. Se cobre tudo, diz quanto sobra.
+
+**Exemplo (R$ 4.000 em mãos, R$ 6.000 de conta em agosto):** cobre as 7 primeiras (R$ 3.900),
+sobram R$ 100, e a **Fatura Nubank** fica faltando **R$ 2.000**.
+
+**Teste:** `motor.teste.js` · `RN022-1..3`.
+**Procedência:** enriquecimento aprovado na auditoria — responde "pago quais?" antes do susto.
+
+---
+
+### RN023 — Relatório: série real × plano, sequência e simulador
+**Regra:**
+
+- **Série do mês:** para cada dia, o **acumulado real** dos aportes e a **linha reta do plano**
+  (`alvo × dia ÷ dias do mês`). Dia sem lançamento mantém o acumulado — a linha não cai.
+- **Sequência:** dias seguidos lançando. **Ontem ainda conta** — a sequência só quebra depois de
+  um dia inteiro em branco, senão ela morreria toda manhã antes do primeiro lançamento.
+- **Simulador:** "e se eu juntar R$ X/dia" projeta o fechamento do mês e o cofre da campanha.
+  A conta é a diferença entre o que a hipótese junta e o que ainda faltava juntar.
+
+**Exemplos:**
+- 400 no dia 1 e 600 no dia 3 → série: 400, 400, 1.000, 1.000… e a linha ideal fecha nos 9.000
+- Lançou dias 8, 9 e 10: no dia 10 a sequência é 3; no dia 11 continua 3; no dia 12 **zera**
+- Simulador a 400/dia em agosto → mês fecha com **R$ 12.400** e cofre em **R$ 15.400** (o mesmo
+  número da RN014-2, por caminho independente)
+
+**Teste:** `motor.teste.js` · `RN023-1..4` + `test_metas.py` (6b).
+**Procedência:** pedido do usuário — "vai ter que ter um negócio de relatório... com gráfico
+para saber se eu tava conseguindo acompanhar minha meta direitinho".
+
+---
+
+### RN024 — Duplicar campanha desloca os meses mantendo os buracos
+**Regra:** a cópia começa **logo depois do fim** da original e desloca todos os meses pelo mesmo
+número de meses que a campanha ocupa. Mês pulado continua pulado. Valores e categorias vêm
+juntos; o nome ganha " (2)" para ser conferido.
+
+**Exemplos:**
+- ago–nov/2026 → **dez/2026 a mar/2027**
+- nov/2026 + jan/2027 (dezembro pulado) → **fev/2027 + abr/2027** (o buraco anda junto)
+
+**Teste:** `motor.teste.js` · `RN024-1..2` + `test_metas.py` (6c).
 **Procedência:** enriquecimento aprovado na auditoria de 2026-07-27.
 
 ---
