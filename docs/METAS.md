@@ -1,7 +1,7 @@
 # METAS — o manual
 
 > **Fonte única do conceito de Meta.** As regras formais (com teste) estão em
-> `REGRAS-DE-NEGOCIO.md` (RN010–RN019); as decisões e os furos que elas fecham, em
+> `regras/metas.md` (RN010–RN024); as decisões e os furos que elas fecham, em
 > `DECISOES.md` (D007.1–D007.10). Aqui está o **porquê**, em português claro, com os exemplos reais
 > que o usuário deu ao pedir a funcionalidade.
 

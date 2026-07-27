@@ -78,8 +78,10 @@ Versão completa em `docs/GOVERNANCA.md` §2. As linhas 🔴 de comando são imp
 | `docs/GOVERNANCA.md` | Sempre — fluxo completo, permissões, rollback, convenção de commit. |
 | `docs/PRD.md` | Antes de decidir o **o quê**/**por quê** de uma funcionalidade. |
 | `docs/SPEC.md` | Antes de mexer em código — arquitetura, stack, modelo de dados. |
-| `docs/REGRAS-DE-NEGOCIO.md` | **Antes de tocar em recorrência, parcelamento ou datas.** |
-| `docs/METAS.md` | **Antes de tocar em metas** — caixinha, sobra, cofre e o extrato único. |
+| `docs/REGRAS-DE-NEGOCIO.md` | Índice das 24 regras e o teste de cada uma. Aponta para o texto. |
+| `docs/regras/contas.md` | **Antes de tocar em recorrência, parcelamento ou datas** (RN001–RN009). |
+| `docs/regras/metas.md` | **Antes de tocar em metas** (RN010–RN024). |
+| `docs/METAS.md` | O módulo de metas em linguagem comum — caixinha, sobra, cofre, extrato. |
 | `docs/DECISOES.md` | Para entender **por que** algo é assim (memória sob demanda). |
 | `Planos/MANUAL.md` + `MODELO-DE-PLANO.md` | Antes de criar/atualizar um plano. |
 | `Planos/INDICE.md` | Para ver o que já está em andamento antes de começar algo novo. |

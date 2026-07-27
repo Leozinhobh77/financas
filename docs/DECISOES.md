@@ -14,6 +14,7 @@
 
 | # | Decisão | Data | Status |
 |---|---|---|---|
+| D008 | Regras de negócio quebradas por assunto em `docs/regras/` | 2026-07-27 | Ativa |
 | D007 | Metas: modelo de dados e as 10 travas da auditoria (D007.1 a D007.10) | 2026-07-27 | Ativa |
 | D006 | "Investigue antes de agir" (AGENTS.md §3 nº 1) é regra de fundação — não se abate | 2026-07-27 | Ativa |
 | D005 | Painel: no máximo 2 colunas no celular, sem `overflow:hidden` em valor | 2026-07-27 | Ativa |
@@ -42,6 +43,27 @@ for acionada** (`docs/GOVERNANCA.md` §6).
 
 _(as decisões entram abaixo, mais nova primeiro)_
 
+### D008 — Regras de negócio quebradas por assunto, com índice único (2026-07-27)
+**Decisão:** `docs/REGRAS-DE-NEGOCIO.md` passa a ser **só o índice** (a tabela de cobertura, com
+o teste de cada regra). O texto das regras mora em `docs/regras/contas.md` (RN001–RN009) e
+`docs/regras/metas.md` (RN010–RN024). Regra nova entra no arquivo do assunto **e** ganha
+obrigatoriamente a linha no índice — é ela que o `/harness doctor` usa para cobrar teste.
+**Motivo:** o arquivo tinha chegado a 587 linhas (teto do orçamento: 250). Mais importante que o
+número: quem ia mexer em recorrência carregava 587 linhas das quais ~290 eram sobre metas, e
+vice-versa. A leitura é sob demanda, então o custo é real no momento em que mais atrapalha.
+**Alternativas consideradas:** (a) tirar os blocos de "Exemplos" cujos números já estão nos
+testes — cortaria ~170 linhas, não bastaria sozinho, e sacrificaria justamente a parte que faz o
+documento ser legível por gente; (b) as duas coisas juntas. Escolhida a quebra pura: nenhuma
+informação foi perdida, só mudou de lugar (regra do ponteiro, `ORCAMENTOS.md`).
+**Ressalva honesta:** os dois arquivos filhos ficaram com 263 e 296 linhas — acima de 250. A
+tabela de orçamentos da skill não tem linha para `docs/regras/*`, então o `doctor` não os
+fiscaliza. A quebra resolve o problema real (leitura sob demanda mais enxuta) **e** faz o número
+parar de acusar; as duas coisas são verdade. O buraco na tabela é candidato a `/harness evolve`,
+não justificativa para encolher documentação.
+**Procedência:** `/harness doctor` de 27/07/2026, item `[Inchaco] docs\REGRAS-DE-NEGOCIO.md tem
+587 linhas (teto 250)`. Opção apresentada ao usuário com as três alternativas; ele autorizou a A.
+**Relacionado:** `ORCAMENTOS.md` (Lei 3), D007, `docs/METAS.md`.
+
 ### D007 — Metas: modelo de dados e as 10 travas da auditoria (2026-07-27)
 
 **Contexto.** O módulo de Metas foi desenhado em três rodadas de conversa e passou por uma
@@ -49,7 +71,7 @@ _(as decisões entram abaixo, mais nova primeiro)_
 capazes de corromper saldo em silêncio. As decisões abaixo são a resposta a cada um. Estão
 agrupadas numa entrada só porque são **uma deliberação sobre um subsistema**; o índice de
 DECISOES.md estoura em 15 entradas (regra do próprio projeto). O manual em linguagem comum
-está em `docs/METAS.md`; as regras formais, em `REGRAS-DE-NEGOCIO.md` RN010–RN019.
+está em `docs/METAS.md`; as regras formais, em `docs/regras/metas.md` (RN010–RN024).
 
 **Premissa que orienta todas elas:** a caixinha **paga** as contas — não são dois bolsos — e a
 **sobra é o propósito**, não um resto.
