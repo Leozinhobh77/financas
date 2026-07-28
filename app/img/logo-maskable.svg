@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Finanças">
+  <!--
+    Versao "maskable": o Android recorta o icone na forma que o aparelho usar (circulo,
+    squircle, gota). Por isso aqui o fundo sangra ate a borda (sem canto arredondado) e o
+    desenho fica dentro da zona segura — o circulo central de 80% do lado. Fora dela, o
+    sistema pode cortar. Sem este arquivo, o F apareceria decapitado em celular redondo.
+  -->
+  <rect width="512" height="512" fill="#0B6B59"/>
+  <circle cx="470" cy="60" r="180" fill="#0F7D68" opacity=".55"/>
+  <g transform="translate(256 256) scale(.82) translate(-264 -256)">
+    <rect x="168" y="128" width="56"  height="256" rx="16" fill="#F4F2EC"/>
+    <rect x="168" y="128" width="192" height="56"  rx="16" fill="#F4F2EC"/>
+    <rect x="168" y="230" width="132" height="56"  rx="16" fill="#7FD3BE"/>
+  </g>
+</svg>

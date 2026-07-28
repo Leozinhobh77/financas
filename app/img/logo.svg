@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Finanças">
+  <!--
+    Marca do Finanças — monograma F: uma coluna e duas linhas de extrato saindo dela.
+    Cores travadas nos tokens de marca do app (estilo.css): #0B6B59 accent, #F4F2EC fundo claro.
+    Nao usa currentColor de proposito — icone de app tem que ser igual em qualquer tema.
+  -->
+  <defs>
+    <clipPath id="corte"><rect width="512" height="512" rx="114"/></clipPath>
+  </defs>
+  <g clip-path="url(#corte)">
+    <rect width="512" height="512" fill="#0B6B59"/>
+    <circle cx="470" cy="60" r="180" fill="#0F7D68" opacity=".55"/>
+    <rect x="168" y="128" width="56"  height="256" rx="16" fill="#F4F2EC"/>
+    <rect x="168" y="128" width="192" height="56"  rx="16" fill="#F4F2EC"/>
+    <rect x="168" y="230" width="132" height="56"  rx="16" fill="#7FD3BE"/>
+  </g>
+</svg>

@@ -23,6 +23,10 @@ app/
 ├── index.html          shell da SPA + os 3 modais (conta, pagamento, confirmação)
 ├── css/
 │   └── estilo.css       tokens (claro/escuro) + layout + componentes + cores de categoria
+├── img/
+│   ├── logo.svg          marca (monograma F) — fonte de todos os ícones
+│   ├── logo-maskable.svg mesma marca com sangria, para o recorte do Android
+│   └── icone-*.png       192/512/maskable — gerados do SVG, não editar à mão
 └── js/
     ├── datas.js          motor de datas: semana seg-dom, numeração de semana do mês
     ├── contas.js          modelo de conta + motor de recorrência + motor de parcelamento
