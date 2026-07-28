@@ -1,7 +1,7 @@
 ---
 id: 0007
 titulo: App instalável na tela de início (manifesto + service worker)
-status: 📝 Rascunho
+status: 🚧 Em andamento
 prioridade: Alta
 criado_em: 2026-07-28
 atualizado_em: 2026-07-28
@@ -81,45 +81,48 @@ instalação elimina ou não o botão laranja de reconectar.
 - [x] Não conflita com `docs/SPEC.md` — "sem dependência externa em runtime" continua verdade
       (o service worker é do próprio app, não é rede de terceiro). Na verdade **reforça** a
       linha "funciona 100% offline depois de carregado", que hoje é falsa quando aberto por link.
-- [ ] Plano revisado com o usuário e **aprovado** antes de iniciar a Fase 1.
-- [ ] Autorização explícita para começar a implementar.
+- [x] Plano revisado com o usuário e **aprovado** antes de iniciar a Fase 1.
+- [x] Autorização explícita para começar a implementar (2026-07-28: fases 1 a 3).
 - [x] Working tree limpo (o commit da marca já entrou: `53152f1`).
 
 ## Etapas
 
-> Progresso: 0 de 18 tarefas (0%)
+> Progresso: 14 de 18 tarefas (78%) — fases 1 a 3 entregues; falta a Fase 4 (aparelho real).
 
-### Fase 1 — Manifesto
-- [ ] Gerar `app/img/icone-maskable-192.png` a partir do SVG (falta só esse tamanho).
-- [ ] Criar `app/manifest.json`: `name`, `short_name`, `description`, `lang: pt-BR`,
+### Fase 1 — Manifesto ✔️
+- [x] Gerar `app/img/icone-maskable-192.png` a partir do SVG (falta só esse tamanho).
+- [x] Criar `app/manifest.json`: `name`, `short_name`, `description`, `lang: pt-BR`,
       `start_url`, `scope`, `display: standalone`, `background_color`, `theme_color`, e os
       ícones com `purpose` **any** e **maskable**.
-- [ ] Ligar no `app/index.html`: `<link rel="manifest">` + `<meta name="theme-color">`
+- [x] Ligar no `app/index.html`: `<link rel="manifest">` + `<meta name="theme-color">`
       (um valor para tema claro e outro para escuro).
-- [ ] Conferir no DevTools que o Chrome lê o manifesto sem aviso.
+- [x] Conferir que o manifesto é lido e é válido — feito por teste automatizado em vez de
+      olho no DevTools: `test_instalavel.py` §1 confere os campos exigidos **e** que cada
+      ícone listado existe de verdade (campo preenchido apontando para arquivo inexistente
+      era a falha silenciosa mais provável aqui).
 
-### Fase 2 — Service worker
-- [ ] Criar `app/sw.js` com uma constante `VERSAO` no topo e comentário gritando que **ela tem
+### Fase 2 — Service worker ✔️
+- [x] Criar `app/sw.js` com uma constante `VERSAO` no topo e comentário gritando que **ela tem
       que subir a cada publicação**, senão o usuário fica preso na versão velha.
-- [ ] Precache do app na instalação: `index.html`, `css/estilo.css`, os 14 arquivos de `js/`,
+- [x] Precache do app na instalação: `index.html`, `css/estilo.css`, os 14 arquivos de `js/`,
       e os ícones.
-- [ ] Navegação (abrir o app): **rede primeiro, cache como reserva** — pega versão nova quando
+- [x] Navegação (abrir o app): **rede primeiro, cache como reserva** — pega versão nova quando
       há internet, e abre offline quando não há.
-- [ ] Demais arquivos: **cache primeiro, atualizando por baixo** — rápido e sempre convergindo
+- [x] Demais arquivos: **cache primeiro, atualizando por baixo** — rápido e sempre convergindo
       para a versão nova.
-- [ ] No `activate`: apagar caches de versões anteriores + `clients.claim()`.
-- [ ] Registrar o service worker **só quando o protocolo for `http`/`https`** (guarda do `file://`).
-- [ ] Deixar documentado no topo do `sw.js` como desarmar em emergência (o "botão de pânico",
+- [x] No `activate`: apagar caches de versões anteriores + `clients.claim()`.
+- [x] Registrar o service worker **só quando o protocolo for `http`/`https`** (guarda do `file://`).
+- [x] Deixar documentado no topo do `sw.js` como desarmar em emergência (o "botão de pânico",
       caso uma versão ruim vá ao ar).
 
-### Fase 3 — Testes
-- [ ] Criar `testes/e2e/test_instalavel.py`: sobe um servidor local e verifica —
+### Fase 3 — Testes ✔️
+- [x] Criar `testes/e2e/test_instalavel.py`: sobe um servidor local e verifica —
       manifesto encontrado e válido; ícones respondendo; `display: standalone`;
       service worker chegando a `activated`; **app abrindo com a rede desligada**;
-      zero erros de console.
-- [ ] Rodar a suíte inteira sem regressão: `node testes/motor.teste.js` + os 4 testes e2e,
-      confirmando que o `file://` continua limpo depois do registro condicional.
-- [ ] Registrar o novo teste na tabela de comandos do `AGENTS.md` §2.
+      zero erros de console. **24 de 24 verificações.**
+- [x] Rodar a suíte inteira sem regressão: motor 144/144, `test_app_financas`, `test_metas`,
+      `test_sem_corte`, `test_backup` 45/45 — todas passando, `file://` limpo.
+- [x] Registrar o novo teste na tabela de comandos do `AGENTS.md` §2.
 
 ### Fase 4 — Publicar e provar no aparelho real
 - [ ] Usuário dá `git push` (linha vermelha do projeto: o push é dele, não meu).
@@ -189,6 +192,12 @@ instalação elimina ou não o botão laranja de reconectar.
 
 - 2026-07-28 — Plano criado (Rascunho). Investigação prévia já feita: confirmado que faltavam
   manifesto e service worker, e que o `https://` e os ícones já estão prontos.
+- 2026-07-28 — Aprovado pelo usuário (fases 1 a 3). **Fases 1, 2 e 3 entregues.** Criados
+  `app/manifest.json`, `app/sw.js`, `app/img/icone-maskable-192.png` e
+  `testes/e2e/test_instalavel.py`; registro do service worker com guarda de protocolo em
+  `app/js/app.js`. Testes: 24/24 no novo, e a suíte existente inteira sem regressão. Docs
+  sincronizados (`AGENTS.md` §2, `docs/SPEC.md`). **Falta só a Fase 4**, que depende do push
+  do usuário e do aparelho real.
 
 ## Pendências / próximos passos
 

@@ -1,0 +1,20 @@
+{
+  "name": "Finanças — contas a pagar e a receber",
+  "short_name": "Finanças",
+  "description": "Controle pessoal de contas a pagar e a receber, com recorrência, parcelamento e metas.",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "start_url": "./index.html",
+  "scope": "./",
+  "id": "financas-app",
+  "display": "standalone",
+  "background_color": "#F4F2EC",
+  "theme_color": "#0B6B59",
+  "categories": ["finance", "productivity"],
+  "icons": [
+    { "src": "img/icone-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "img/icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "img/icone-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "img/icone-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

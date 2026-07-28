@@ -14,13 +14,17 @@
   referência).
 - **Mobile-first.** O uso real é no celular; desktop é o caso secundário, não o principal.
 - **Sem dependência externa em runtime.** Nenhuma chamada de rede — o app funciona 100% offline
-  depois de carregado.
+  depois de carregado. Aberto por link (GitHub Pages), quem garante isso é o service worker
+  (`app/sw.js`): sem ele, "depois de carregado" dependia da sorte do cache do navegador.
 
 ## Arquitetura de arquivos
 
 ```
 app/
 ├── index.html          shell da SPA + os 3 modais (conta, pagamento, confirmação)
+├── manifest.json       identidade do app instalável (nome, ícones, cor, janela própria)
+├── sw.js               service worker: instalação + abrir offline. ⚠️ subir `VERSAO` a cada
+│                        publicação, senão o usuário fica preso na versão antiga
 ├── css/
 │   └── estilo.css       tokens (claro/escuro) + layout + componentes + cores de categoria
 ├── img/

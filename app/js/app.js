@@ -1863,6 +1863,25 @@
     });
   }
 
+  /**
+   * Service worker — e ele que permite instalar na tela de inicio e abrir sem internet.
+   *
+   * A guarda de protocolo NAO e preciosismo: por `file://` a API existe mas o registro
+   * rejeita, e TODOS os testes e2e deste projeto rodam por `file://`. Sem a guarda, o
+   * critério de aceite "zero erros de console" cai e a suite inteira quebra junto.
+   *
+   * Falhar aqui nao e fatal: o app funciona exatamente igual, so nao abre offline. Por isso
+   * avisa e segue, em vez de estourar.
+   */
+  function registrarServiceWorker() {
+    if (!('serviceWorker' in navigator)) return;
+    if (location.protocol !== 'http:' && location.protocol !== 'https:') return;
+    navigator.serviceWorker.register('sw.js').catch(function (e) {
+      console.warn('Service worker não registrado — o app funciona igual, só não abre offline.', e);
+    });
+  }
+
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar);
   else iniciar();
+  registrarServiceWorker();
 })();

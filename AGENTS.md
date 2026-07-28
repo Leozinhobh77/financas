@@ -26,7 +26,11 @@ python testes/e2e/test_app_financas.py   # fluxos e regras de negócio
 python testes/e2e/test_metas.py          # metas: campanha, cofre, lançamento, 8 larguras
 python testes/e2e/test_sem_corte.py      # layout: nenhum valor cortado em 8 larguras
 python testes/e2e/test_backup.py         # backup: importar, restaurar, apagar, limpar
+python testes/e2e/test_instalavel.py     # manifesto, service worker, abrir sem internet
 ```
+
+> `test_instalavel.py` é o único que roda por `http://` (sobe servidor local): service worker
+> não existe em `file://`. Ele também prova que, por `file://`, o app segue sem erro nenhum.
 
 ## 3. Regras de ouro (não negociáveis)
 
