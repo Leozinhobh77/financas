@@ -7,7 +7,7 @@ O **mais novo fica sempre no topo** de cada seção.
 
 | ID | Plano | Status | Progresso | Criado | Atualizado |
 |----|-------|--------|-----------|--------|------------|
-| [0007](0007-2026-07-28-instalar-na-tela-de-inicio.md) | App instalável na tela de início (manifesto + service worker) | 🚧 Em andamento | 14 de 18 (78%) | 2026-07-28 | 2026-07-28 |
+| [0007](0007-2026-07-28-instalar-na-tela-de-inicio.md) | App instalável na tela de início (manifesto + service worker) | 🚧 Em andamento | 15 de 18 (83%) | 2026-07-28 | 2026-07-28 |
 
 ## ✅ Concluídos / Arquivados
 

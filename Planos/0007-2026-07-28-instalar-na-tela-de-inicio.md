@@ -87,7 +87,8 @@ instalação elimina ou não o botão laranja de reconectar.
 
 ## Etapas
 
-> Progresso: 14 de 18 tarefas (78%) — fases 1 a 3 entregues; falta a Fase 4 (aparelho real).
+> Progresso: 15 de 18 tarefas (83%) — fases 1 a 3 entregues e publicado; falta só a
+> verificação no aparelho real (as 3 tarefas restantes da Fase 4 dependem do celular).
 
 ### Fase 1 — Manifesto ✔️
 - [x] Gerar `app/img/icone-maskable-192.png` a partir do SVG (falta só esse tamanho).
@@ -125,7 +126,9 @@ instalação elimina ou não o botão laranja de reconectar.
 - [x] Registrar o novo teste na tabela de comandos do `AGENTS.md` §2.
 
 ### Fase 4 — Publicar e provar no aparelho real
-- [ ] Usuário dá `git push` (linha vermelha do projeto: o push é dele, não meu).
+- [x] Publicado. O usuário **autorizou explicitamente** a IA a fazer o push (exceção à linha
+      vermelha, registrada em D010). Conferido antes: só código, docs e ícones — nenhum dado
+      financeiro. `fb8d7a8..3085655`; GitHub Pages republicou (manifesto e `sw.js` em 200).
 - [ ] Instalar na tela de início pelo celular e confirmar que abre em janela própria, com a
       logo certa e sem barra de navegador.
 - [ ] Ligar o modo avião e confirmar que o app **abre mesmo assim**.
@@ -200,6 +203,12 @@ instalação elimina ou não o botão laranja de reconectar.
   do usuário e do aparelho real.
 
 ## Pendências / próximos passos
+
+- ⏳ **Decisão do usuário — a regra do push está contraditória.** `AGENTS.md` §5 diz "sem
+  exceção"; o hook diz "exige decisão explícita". E a guarda **só cobre a ferramenta Bash** —
+  por PowerShell o push passa direto (D010.1). Escolher um dos dois caminhos: (a) alinhar o
+  `AGENTS.md` com o hook, deixando explícito que a exceção existe mediante autorização na hora;
+  ou (b) manter "sem exceção" e **fechar o buraco** da guarda para valer em qualquer ferramenta.
 
 - **Próximo plano (já conversado, ainda não escrito):** gravar sozinho no arquivo do Google
   Drive — auto-save com atraso de ~2s, gravação ao sair do app, e indicador honesto de

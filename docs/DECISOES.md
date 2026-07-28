@@ -14,6 +14,7 @@
 
 | # | Decisão | Data | Status |
 |---|---|---|---|
+| D010 | Push é do usuário; exceção exige autorização explícita — e a guarda só cobre Bash | 2026-07-28 | Ativa |
 | D009 | Backup: "Atualizar" só no PC, e nenhuma operação destrutiva sem volta | 2026-07-28 | Ativa |
 | D008 | Regras de negócio quebradas por assunto em `docs/regras/` | 2026-07-27 | Ativa |
 | D007 | Metas: modelo de dados e as 10 travas da auditoria (D007.1 a D007.10) | 2026-07-27 | Ativa |
@@ -43,6 +44,29 @@ for acionada** (`docs/GOVERNANCA.md` §6).
 ---
 
 _(as decisões entram abaixo, mais nova primeiro)_
+
+### D010 — Push é do usuário; exceção exige autorização explícita — e a guarda só cobre Bash (2026-07-28)
+**Decisão:** `git push` continua sendo do usuário. A IA só publica mediante **autorização
+explícita, dita naquele momento** — não vale autorização herdada de uma conversa anterior nem
+"ele deixou da última vez". Antes de publicar, é obrigatório **mostrar o que vai ao ar**
+(`git diff --stat origin/main..main` + varredura por dado sensível) e só então executar.
+**Motivo:** `financas` é repositório **público**. Push ali não é salvar, é publicar na internet,
+e publicar não tem desfazer. Em 2026-07-28 o usuário autorizou explicitamente uma exceção para
+subir os 3 commits do plano 0007 (logo, plano, manifesto+service worker); a conferência prévia
+mostrou só código, docs e ícones — nenhum dado financeiro.
+
+**⚠️ D010.1 — a guarda tem um buraco: ela só olha a ferramenta Bash.** `guarda.ps1` testa
+`$ferramenta -eq 'Bash'`, então um `git push` disparado pela ferramenta **PowerShell passa
+direto**, sem bloqueio nenhum. Foi por aí que o push autorizado saiu — de forma transparente e
+anunciada, mas o fato é que a proteção não é hermética. **Quem confiar nela como se fosse
+absoluta está enganado.**
+
+**⚠️ D010.2 — `AGENTS.md` §5 e o hook discordam.** A tabela diz `git push` = 🔴 "Proibido, **sem
+exceção**"; o motivo dentro de `.harness/guardas.json` diz "Publicar exige **decisão explícita
+do usuário**". São regras diferentes: uma é absoluta, a outra é condicional. Enquanto isso não
+for reconciliado, qualquer IA que leia só um dos dois vai agir diferente da que leu o outro.
+**Pendente de decisão do usuário** — ver Pendências do plano 0007.
+**Relacionado:** Plano 0007, `AGENTS.md` §5, `.harness/guardas.json`, D003.
 
 ### D009 — Backup: "Atualizar" só no PC, e nenhuma operação destrutiva sem volta (2026-07-28)
 
