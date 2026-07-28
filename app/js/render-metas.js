@@ -795,7 +795,7 @@
   }
 
   function telaRelatorio(meta, resumo, hojeISO) {
-    var r = resumo.mesCorrente || resumo.meses[resumo.meses.length - 1];
+    var r = Metas.mesEmFoco(resumo);
     var seq = Metas.sequenciaDeDias(meta, hojeISO);
 
     var acompanhamento = '';

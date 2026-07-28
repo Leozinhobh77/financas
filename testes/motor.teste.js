@@ -1411,6 +1411,35 @@ teste('RN023-4: simulador com pouco por dia derruba o cofre na mesma proporção
   assert.ok(s.cofre < r.cofrePrevisto);
 });
 
+secao('RN025 — qual mês a tela mostra quando a campanha ainda não começou');
+
+teste('RN025-1: campanha inteira no futuro -> foca no PRIMEIRO mês, não no último', function () {
+  var meta = metaFixa('Reserva', MESES_CAMPANHA, CATS_CAMPANHA);   // ago a nov/2026
+  var r = Metas.resumoDaCampanha(meta, contasDaCampanha(), '2026-07-27');
+  assert.strictEqual(r.mesCorrente, null, 'pré-condição: em julho nenhum mês está corrente');
+  assert.strictEqual(Metas.mesEmFoco(r).mes, 8, 'agosto é o próximo a acontecer');
+});
+
+teste('RN025-2: com mês corrente, é ele que manda', function () {
+  var meta = metaFixa('Reserva', MESES_CAMPANHA, CATS_CAMPANHA);
+  var r = Metas.resumoDaCampanha(meta, contasDaCampanha(), '2026-09-15');
+  assert.strictEqual(Metas.mesEmFoco(r).mes, 9);
+});
+
+teste('RN025-3: campanha inteira encerrada -> foca no último', function () {
+  var meta = metaFixa('Reserva', MESES_CAMPANHA, CATS_CAMPANHA);
+  var r = Metas.resumoDaCampanha(meta, contasDaCampanha(), '2027-03-01');
+  assert.strictEqual(r.encerrada, true);
+  assert.strictEqual(Metas.mesEmFoco(r).mes, 11);
+});
+
+teste('RN025-4: campanha com um mês encerrado e o resto no futuro -> primeiro em aberto', function () {
+  var meta = metaFixa('Reserva', MESES_CAMPANHA, CATS_CAMPANHA);
+  var r = Metas.resumoDaCampanha(meta, contasDaCampanha(), '2026-09-05');
+  assert.strictEqual(r.meses[0].estado, 'encerrado', 'agosto já passou');
+  assert.strictEqual(Metas.mesEmFoco(r).mes, 9);
+});
+
 secao('RN024 — duplicar campanha');
 
 teste('RN024-1: os meses deslocam para depois do fim, mantendo os buracos', function () {

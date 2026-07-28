@@ -727,6 +727,23 @@
     });
   }
 
+  /**
+   * Qual mês a tela mostra quando não existe mês corrente. Ordem de preferência:
+   *   1. o mês corrente, se a campanha já começou
+   *   2. o PRIMEIRO ainda em aberto — o próximo a acontecer
+   *   3. o último, se a campanha inteira já encerrou
+   *
+   * O passo 2 existe porque cair direto no último mês mostrava o gráfico de **novembro** para
+   * quem, em julho, tinha acabado de montar uma campanha de agosto a novembro. Não era mentira
+   * (o cabeçalho dizia "Novembro"), mas era o mês menos útil dos quatro.
+   */
+  function mesEmFoco(resumo) {
+    if (!resumo || !resumo.meses || !resumo.meses.length) return null;
+    if (resumo.mesCorrente) return resumo.mesCorrente;
+    var abertos = resumo.meses.filter(function (r) { return r.estado !== 'encerrado'; });
+    return abertos.length ? abertos[0] : resumo.meses[resumo.meses.length - 1];
+  }
+
   /** Rótulo curto de um mês; só mostra o ano quando a campanha cruza a virada do ano. */
   function rotuloMes(ano, mes, mostrarAno) {
     var nome = Datas.nomeMes(mes);
@@ -775,6 +792,7 @@
     serieAcumulada: serieAcumulada,
     sequenciaDeDias: sequenciaDeDias,
     simular: simular,
+    mesEmFoco: mesEmFoco,
     mesesParaDuplicar: mesesParaDuplicar,
     indiceMes: indiceMes,
     // utilidades de mês

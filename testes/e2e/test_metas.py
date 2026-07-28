@@ -402,7 +402,39 @@ def main():
               icone != "sem botão" and int(icone.split("x")[0]) <= 28, f"{icone}px")
         pagina.screenshot(path=str(CAPTURAS / "metas-10-relatorio.png"), full_page=True)
 
+        # Cenário real do usuário: em julho ele montou uma campanha de agosto a novembro.
+        # O relatório caía no ÚLTIMO mês da campanha e mostrava novembro; o útil é agosto.
+        print("\n6b2. Campanha que ainda não começou foca no primeiro mês")
+        pagina.evaluate("""() => {
+          const e = JSON.parse(localStorage.getItem('financas_v1'));
+          e.metas.push({
+            id:'meta-futura', nome:'Só no futuro', criadoEm:'2026-07-01T10:00:00.000Z',
+            meses:[{ano:2026,mes:8,alvo:9000},{ano:2026,mes:9,alvo:9000},
+                   {ano:2026,mes:10,alvo:9000},{ano:2026,mes:11,alvo:8000}],
+            selecao:{categorias:['lazer'],incluidas:[],excluidas:[]},
+            movimentos:[], contasConhecidas:[], config:{excedente:'cofre'}
+          });
+          localStorage.setItem('financas_v1', JSON.stringify(e));
+        }""")
+        pagina.goto(URL + "#/metas/meta-futura")
+        pagina.reload()
+        pagina.wait_for_load_state("networkidle")
+        pagina.locator("[data-mes='relatorio']").click()
+        pagina.wait_for_timeout(250)
+
+        foco = pagina.locator(".cartao").first.inner_text().lower()
+        checa("o relatório foca em agosto, não em novembro",
+              "agosto" in foco and "novembro" not in foco, foco[:150])
+        checa("sem mês corrente, o simulador não aparece",
+              pagina.locator("#simulador").count() == 0)
+
         print("\n6c. Duplicar campanha")
+        pagina.evaluate(SEED)
+        pagina.goto(URL + "#/metas/meta-1")
+        pagina.reload()
+        pagina.wait_for_load_state("networkidle")
+        pagina.locator("[data-mes='relatorio']").click()
+        pagina.wait_for_timeout(250)
         pagina.locator("[data-acao='duplicar-meta']").click()
         pagina.wait_for_timeout(300)
         checa("criou a cópia e abriu nela",
