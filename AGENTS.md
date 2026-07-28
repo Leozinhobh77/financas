@@ -25,6 +25,7 @@ node testes/motor.teste.js
 python testes/e2e/test_app_financas.py   # fluxos e regras de negócio
 python testes/e2e/test_metas.py          # metas: campanha, cofre, lançamento, 8 larguras
 python testes/e2e/test_sem_corte.py      # layout: nenhum valor cortado em 8 larguras
+python testes/e2e/test_backup.py         # backup: importar, restaurar, apagar, limpar
 ```
 
 ## 3. Regras de ouro (não negociáveis)
@@ -78,9 +79,10 @@ Versão completa em `docs/GOVERNANCA.md` §2. As linhas 🔴 de comando são imp
 | `docs/GOVERNANCA.md` | Sempre — fluxo completo, permissões, rollback, convenção de commit. |
 | `docs/PRD.md` | Antes de decidir o **o quê**/**por quê** de uma funcionalidade. |
 | `docs/SPEC.md` | Antes de mexer em código — arquitetura, stack, modelo de dados. |
-| `docs/REGRAS-DE-NEGOCIO.md` | Índice das 24 regras e o teste de cada uma. Aponta para o texto. |
+| `docs/REGRAS-DE-NEGOCIO.md` | Índice das 29 regras e o teste de cada uma. Aponta para o texto. |
 | `docs/regras/contas.md` | **Antes de tocar em recorrência, parcelamento ou datas** (RN001–RN009). |
 | `docs/regras/metas.md` | **Antes de tocar em metas** (RN010–RN024). |
+| `docs/regras/backup.md` | **Antes de tocar em backup, importar ou apagar dado** (RN025–RN029). |
 | `docs/METAS.md` | O módulo de metas em linguagem comum — caixinha, sobra, cofre, extrato. |
 | `docs/DECISOES.md` | Para entender **por que** algo é assim (memória sob demanda). |
 | `Planos/MANUAL.md` + `MODELO-DE-PLANO.md` | Antes de criar/atualizar um plano. |

@@ -33,6 +33,11 @@
 | RN022 — Até onde o dinheiro em mãos alcança | `testes/motor.teste.js` · casos `RN022-*` |
 | RN023 — Relatório: série real × plano, sequência e simulador | `testes/motor.teste.js` · `RN023-*` + `test_metas.py` (6b) |
 | RN024 — Duplicar campanha desloca os meses mantendo os buracos | `testes/motor.teste.js` · `RN024-*` |
+| RN025 — Juntar só acrescenta: nunca sobrescreve nem apaga | `testes/motor.teste.js` · `RN025 —*` + `test_backup.py` (Importar) |
+| RN026 — Toda operação destrutiva cria ponto de restauração antes | `testes/motor.teste.js` · `RN026 —*` + `test_backup.py` (Pontos) |
+| RN027 — Limpar histórico nunca remove conta usada por meta | `testes/motor.teste.js` · `RN027 —*` + `test_backup.py` (Limpar) |
+| RN028 — No máximo 5 pontos; dado real vence backup interno | `testes/motor.teste.js` · `RN028 —*` |
+| RN029 — `config` é do aparelho, nunca vem do arquivo | `testes/motor.teste.js` · `RN025 — config*` + `test_backup.py` |
 
 Meta: 100%. `/harness doctor` reprova regra sem teste em projeto T2+.
 
@@ -52,6 +57,7 @@ números e procedência — mora em dois arquivos, separados por assunto:
 |---|---|---|
 | [`regras/contas.md`](regras/contas.md) | **RN001–RN009** | recorrência, parcelamento, datas, semanas, filtros |
 | [`regras/metas.md`](regras/metas.md) | **RN010–RN024** | caixinha, sobra, cofre, baixa cruzada, relatório |
+| [`regras/backup.md`](regras/backup.md) | **RN025–RN029** | exportar, importar, pontos de restauração, apagar, limpar |
 
 **Por que separado:** quem vai mexer em recorrência não precisa das 15 regras de meta, e
 vice-versa. Junto num arquivo só eram 587 linhas, e ~290 delas eram ruído em qualquer tarefa

@@ -11,6 +11,7 @@ var Contas = require('../app/js/contas.js');
 var Filtros = require('../app/js/filtros.js');
 var Analise = require('../app/js/analise.js');
 var Categorias = require('../app/js/categorias.js');
+var Backup = require('../app/js/backup.js');
 
 var total = 0, falhas = [];
 
@@ -1467,6 +1468,131 @@ teste('DATAS-1: diasEntre conta na direção certa e somarDias atravessa o mês'
   assert.strictEqual(Datas.diasEntre('2026-08-31', '2026-08-01'), -30);
   assert.strictEqual(Datas.somarDias('2026-08-30', 3), '2026-09-02');
   assert.strictEqual(Datas.somarDias('2026-03-01', -1), '2026-02-28');
+});
+
+// ============================================================
+secao('BACKUP — mesclar, diagnosticar, podar (RN025–RN029)');
+
+function estadoDeTeste() {
+  return {
+    contas: [
+      { id: 'c1', tipo: 'pagar', status: 'pago', vencimento: '2024-01-10', valor: 100 },
+      { id: 'c2', tipo: 'pagar', status: 'pago', vencimento: '2024-02-10', valor: 200 },
+      { id: 'c3', tipo: 'pagar', status: 'aberto', vencimento: '2026-08-10', valor: 300 }
+    ],
+    metas: [{ id: 'm1', nome: 'Meta', movimentos: [{ id: 'mv1', tipo: 'baixa', contaId: 'c2', valor: 200 }] }],
+    categorias: ['casa', 'mercado'],
+    config: { tema: 'escuro', versaoDados: 42 }
+  };
+}
+
+teste('RN025 — juntar acrescenta só o que falta e não sobrescreve id existente', function () {
+  var atual = estadoDeTeste();
+  var arquivo = {
+    contas: [{ id: 'c1', valor: 999 }, { id: 'c9', tipo: 'pagar', valor: 50 }],
+    metas: [], categorias: []
+  };
+  var r = Backup.mesclar(atual, arquivo);
+  assert.strictEqual(r.contas.length, 4, 'devia ter as 3 originais + 1 nova');
+  assert.strictEqual(r.contas.filter(function (c) { return c.id === 'c1'; })[0].valor, 100,
+    'c1 do app tinha que vencer o c1 do arquivo');
+});
+
+teste('RN025 — juntar nunca reduz a contagem de contas', function () {
+  var atual = estadoDeTeste();
+  var r = Backup.mesclar(atual, { contas: [], metas: [], categorias: [] });
+  assert.strictEqual(r.contas.length, atual.contas.length);
+});
+
+teste('RN025 — juntar une as categorias sem duplicar', function () {
+  var r = Backup.mesclar(estadoDeTeste(), { contas: [], categorias: ['mercado', 'pet'] });
+  assert.deepStrictEqual(r.categorias, ['casa', 'mercado', 'pet']);
+});
+
+teste('RN025 — config é do aparelho: o arquivo não muda tema nem contador', function () {
+  var r = Backup.mesclar(estadoDeTeste(), { contas: [], config: { tema: 'claro', versaoDados: 0 } });
+  assert.strictEqual(r.config.tema, 'escuro');
+  assert.strictEqual(r.config.versaoDados, 42);
+});
+
+teste('RN025 — juntar acrescenta metas novas e preserva as existentes', function () {
+  var r = Backup.mesclar(estadoDeTeste(), { contas: [], metas: [{ id: 'm1', nome: 'Outra' }, { id: 'm2' }] });
+  assert.strictEqual(r.metas.length, 2);
+  assert.strictEqual(r.metas[0].nome, 'Meta', 'm1 do app tinha que vencer');
+});
+
+teste('diagnosticar conta o que entra e o que se perderia ao substituir', function () {
+  var d = Backup.diagnosticar(estadoDeTeste(), {
+    contas: [{ id: 'c1' }, { id: 'c9' }], metas: [{ id: 'm2' }], categorias: ['pet']
+  });
+  assert.strictEqual(d.contasNoApp, 3);
+  assert.strictEqual(d.contasNoArquivo, 2);
+  assert.strictEqual(d.contasNovas, 1, 'só c9 é nova');
+  assert.strictEqual(d.metasNovas, 1);
+  assert.strictEqual(d.categoriasNovas, 1);
+  assert.strictEqual(d.perdidasSeSubstituir, 2, 'c2 e c3 não estão no arquivo');
+});
+
+teste('valido rejeita o que não é backup do app', function () {
+  assert.strictEqual(Backup.valido(null), false);
+  assert.strictEqual(Backup.valido({}), false);
+  assert.strictEqual(Backup.valido({ contas: 'nao-e-lista' }), false);
+  assert.strictEqual(Backup.valido({ contas: [] }), true);
+});
+
+teste('RN026 — podar remove só conta paga anterior ao corte', function () {
+  var r = Backup.podarPagas(estadoDeTeste(), '2026-01-01');
+  var ids = r.contas.map(function (c) { return c.id; });
+  assert.strictEqual(ids.indexOf('c1'), -1, 'c1 é paga e antiga — sai');
+  assert.notStrictEqual(ids.indexOf('c3'), -1, 'c3 está aberta — fica');
+  assert.strictEqual(r.removidas, 1);
+});
+
+teste('RN027 — podar NUNCA remove conta abatida por uma meta', function () {
+  var r = Backup.podarPagas(estadoDeTeste(), '2026-01-01');
+  var ids = r.contas.map(function (c) { return c.id; });
+  assert.notStrictEqual(ids.indexOf('c2'), -1, 'c2 tem movimento na meta m1 — tem que ficar');
+  assert.strictEqual(r.preservadas, 1);
+});
+
+teste('RN026 — corte anterior a tudo não remove nada', function () {
+  var r = Backup.podarPagas(estadoDeTeste(), '2020-01-01');
+  assert.strictEqual(r.removidas, 0);
+  assert.strictEqual(r.contas.length, 3);
+});
+
+teste('contarPodaveis não altera o estado recebido', function () {
+  var e = estadoDeTeste();
+  var n = Backup.contarPodaveis(e, '2026-01-01');
+  assert.strictEqual(n, 1);
+  assert.strictEqual(e.contas.length, 3, 'o estado original não pode ter sido tocado');
+});
+
+teste('contasUsadasPorMetas mapeia todos os movimentos com conta', function () {
+  var u = Backup.contasUsadasPorMetas([
+    { movimentos: [{ contaId: 'a' }, { tipo: 'aporte' }] },
+    { movimentos: [{ contaId: 'b' }] },
+    { }
+  ]);
+  assert.deepStrictEqual(Object.keys(u).sort(), ['a', 'b']);
+});
+
+teste('RN028 — a lista de pontos guarda no máximo 5', function () {
+  var muitos = [1, 2, 3, 4, 5, 6, 7].map(function (n) { return { id: 'p' + n }; });
+  var r = Backup.limitar(muitos, Backup.MAX_PONTOS);
+  assert.strictEqual(r.length, 5);
+  assert.strictEqual(r[0].id, 'p1', 'o mais novo vem na frente e sobrevive');
+  assert.strictEqual(r[4].id, 'p5');
+});
+
+teste('resumoDoArquivo tolera arquivo capenga', function () {
+  assert.deepStrictEqual(Backup.resumoDoArquivo(null), { contas: 0, metas: 0 });
+  assert.deepStrictEqual(Backup.resumoDoArquivo({ contas: [1, 2] }), { contas: 2, metas: 0 });
+});
+
+teste('mesclar ignora item sem id (arquivo corrompido não injeta lixo)', function () {
+  var r = Backup.mesclar(estadoDeTeste(), { contas: [{ valor: 10 }, null, { id: 'c9' }] });
+  assert.strictEqual(r.contas.length, 4);
 });
 
 // ============================================================

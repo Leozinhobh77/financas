@@ -777,7 +777,10 @@ main { max-width: 900px; margin: 0 auto; padding: 1.15rem clamp(.9rem, 4vw, 2rem
 }
 .cat-pill-cor { width: 9px; height: 9px; border-radius: 3px; }
 .form-inline { display: flex; gap: .5rem; }
-.form-inline input { flex: 1; }
+/* `flex: 1` sozinho nao encolhe: a largura minima intrinseca do input (o placeholder) segura
+   a linha e o botao vai para fora da tela. Em 320px isso esticava a PAGINA inteira. */
+.form-inline input { flex: 1; min-width: 0; }
+.form-inline .botao { flex-shrink: 0; }
 .bloco { background: var(--superficie); border: 1px solid var(--borda); border-radius: var(--r-lg); padding: 1.1rem 1.15rem; display: flex; flex-direction: column; gap: .75rem; box-shadow: var(--sombra-1); }
 .bloco h3 { font-size: .95rem; }
 .bloco-desc { font-size: .82rem; color: var(--ink-3); }
@@ -1214,4 +1217,53 @@ main { max-width: 900px; margin: 0 auto; padding: 1.15rem clamp(.9rem, 4vw, 2rem
 @media (max-width: 360px) {
   .meses-escolha .mes-alvo { width: 88px; flex-basis: 88px; }
   .meta-acoes { flex-direction: column; }
+}
+
+/* ============================================================ BACKUP / AJUSTES */
+
+/* Diálogo de confirmação: o texto agora traz números em várias linhas (importar, apagar).
+   Sem pre-line, os "\n" viravam um parágrafo corrido e os números se perdiam. */
+#confirmTexto { white-space: pre-line; }
+.confirm-entrada { width: 100%; margin-bottom: .8rem; text-transform: uppercase; letter-spacing: .06em; }
+/* Botao travado tem que PARECER travado: vermelho e vivo enquanto ignora o clique e o pior
+   dos mundos — o usuario acha que o app travou, nao que falta digitar a palavra. */
+.botao:disabled { opacity: .4; cursor: not-allowed; filter: grayscale(.5); }
+
+.bk-cartao {
+  display: flex; align-items: center; gap: .8rem; flex-wrap: wrap;
+  border: 1px solid var(--borda); border-radius: var(--r-md);
+  background: var(--superficie-2); padding: .8rem .9rem; margin-bottom: .8rem;
+}
+.bk-cartao--ativo { border-color: var(--accent); background: var(--accent-tint); }
+.bk-cartao--alerta { border-color: var(--alerta); background: var(--alerta-tint); }
+/* Sem base minima, o botao ao lado esmagava o texto ate ele virar uma coluna de 1 palavra
+   por linha. Com 11rem de base, o botao desce para a linha de baixo antes disso acontecer. */
+.bk-cartao .ms-texto { flex: 1 1 11rem; }
+.bk-cartao strong { display: flex; align-items: center; gap: .4rem; font-size: .9rem; }
+.bk-cartao strong svg { width: 1rem; height: 1rem; flex-shrink: 0; }
+.bk-nota { display: block; font-size: .78rem; color: var(--ink-2); margin-top: .15rem; }
+.bk-acoes { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
+
+.botao-mini { padding: .35rem .6rem; font-size: .78rem; }
+
+.ponto-linha, .risco-linha {
+  display: flex; align-items: center; gap: .8rem; flex-wrap: wrap;
+  padding: .65rem 0; border-top: 1px solid var(--borda-suave);
+}
+.ponto-linha:first-child, .risco-linha:first-child { border-top: 0; }
+.ponto-linha strong, .risco-linha strong { font-size: .88rem; }
+.ponto-nota, .risco-nota { display: block; font-size: .76rem; color: var(--ink-3); margin-top: .15rem; }
+.vazio-nota { font-size: .8rem; color: var(--ink-3); }
+
+.risco-acao { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
+.risco-acao .select { width: auto; min-width: 9.5rem; }
+
+.bloco--risco { border-color: var(--negativo); }
+.bloco--risco h3 { display: flex; align-items: center; gap: .4rem; color: var(--negativo); }
+.bloco--risco h3 svg { width: 1.05rem; height: 1.05rem; flex-shrink: 0; }
+
+/* Em tela estreita a ação desce e ocupa a linha inteira, senão o select espreme o texto */
+@media (max-width: 460px) {
+  .risco-acao, .bk-acoes { width: 100%; }
+  .risco-acao .select { flex: 1; min-width: 0; }
 }

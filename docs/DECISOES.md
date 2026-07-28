@@ -14,6 +14,7 @@
 
 | # | Decisão | Data | Status |
 |---|---|---|---|
+| D009 | Backup: "Atualizar" só no PC, e nenhuma operação destrutiva sem volta | 2026-07-28 | Ativa |
 | D008 | Regras de negócio quebradas por assunto em `docs/regras/` | 2026-07-27 | Ativa |
 | D007 | Metas: modelo de dados e as 10 travas da auditoria (D007.1 a D007.10) | 2026-07-27 | Ativa |
 | D006 | "Investigue antes de agir" (AGENTS.md §3 nº 1) é regra de fundação — não se abate | 2026-07-27 | Ativa |
@@ -42,6 +43,46 @@ for acionada** (`docs/GOVERNANCA.md` §6).
 ---
 
 _(as decisões entram abaixo, mais nova primeiro)_
+
+### D009 — Backup: "Atualizar" só no PC, e nenhuma operação destrutiva sem volta (2026-07-28)
+
+**Decisão:** quatro escolhas ligadas, todas no bloco Backup dos Ajustes.
+
+**D009.1 — O "Atualizar" existe, mas só onde a plataforma deixa.** Reescrever sempre o mesmo
+arquivo exige a **File System Access API** (`showSaveFilePicker` + `FileSystemFileHandle`
+guardado em IndexedDB, porque handle não vira JSON). Ela **não existe no Android nem no iOS**.
+Então `app/js/arquivo.js` sempre passa por `suportado()` e a tela tem dois cartões: com a API,
+o botão **Atualizar**; sem ela, o aviso "último backup há X dias · N alterações desde então".
+**Nunca um botão inerte** — botão que não funciona ensina o usuário a desconfiar da tela.
+
+**D009.2 — O contador vale mais que a comparação de conteúdo.** `config.versaoDados` sobe +1
+a cada `salvar()`; o backup grava o valor da época. A diferença é o "N alterações desde
+então", exato e de graça. As alternativas eram carimbar `atualizadoEm` em cada conta (muda o
+modelo de dados) ou comparar assinatura (só diz "mudou/não mudou", não quantas).
+
+**D009.3 — Juntar só acrescenta (RN025).** É a única definição de "juntar" incapaz de perder
+dado. O custo aceito é duplicar conta lançada em dois aparelhos — ids diferentes, mesma conta.
+Preferível ao inverso, que perderia uma delas em silêncio.
+
+**D009.4 — Ponto de restauração é rede, não dado (RN028).** Máximo 5, em chave separada do
+`localStorage`, e **descartados primeiro** se a cota estourar. Ficam fora do estado principal
+de propósito: dentro dele, entrariam no arquivo exportado e o backup engordaria de forma
+recursiva a cada exportação.
+
+**Motivo:** o pedido original foi só "não quero acumular arquivo". Investigando, apareceu algo
+mais grave ao lado: `importarBackup` chamava `salvar()` direto — importar um arquivo antigo
+por engano apagava tudo, sem aviso e sem volta. O plano tratou os dois.
+
+**Procedência:** pedido do usuário em 28/07/2026 (*"toda hora eu tenho que ficar exportando,
+exportando, e vai juntando um monte de arquivo"* + *"uma de apagar todos os dados"*). O
+buraco do importar foi achado lendo `armazenamento.js` durante a investigação, não pelo
+pedido.
+
+**Alternativas consideradas:** nome de arquivo fixo em vez de handle — rejeitada, o Chrome
+renomeia para `financas (1).json` e o problema volta; backup automático agendado — impossível
+sem service worker, o app precisa estar aberto.
+
+**Relacionado:** Plano 0006, RN025–RN029, `docs/regras/backup.md`.
 
 ### D008 — Regras de negócio quebradas por assunto, com índice único (2026-07-27)
 **Decisão:** `docs/REGRAS-DE-NEGOCIO.md` passa a ser **só o índice** (a tabela de cobertura, com

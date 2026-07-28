@@ -35,26 +35,54 @@
     }, 2800);
   }
 
-  function confirmar(titulo, texto, botoes) {
+  /**
+   * `opcoes.exigirTexto` liga a trava de digitacao: o botao marcado com `travado` so
+   * habilita quando o usuario digita exatamente aquela palavra. Existe porque apagar tudo
+   * nao tem volta pelo caminho normal — clique errado nao pode bastar.
+   */
+  function confirmar(titulo, texto, botoes, opcoes) {
+    var opc = opcoes || {};
     return new Promise(function (resolve) {
       var camada = document.getElementById('camadaConfirm');
       var fundo = document.getElementById('confirmFundo');
+      var entrada = document.getElementById('confirmEntrada');
       document.getElementById('confirmTitulo').textContent = titulo;
       document.getElementById('confirmTexto').textContent = texto;
+
       var elBotoes = document.getElementById('confirmBotoes');
       elBotoes.innerHTML = '';
+      var travados = [];
       botoes.forEach(function (b) {
         var btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'botao ' + (b.classe || 'botao-fantasma');
         btn.textContent = b.rotulo;
-        btn.addEventListener('click', function () { fechar(); resolve(b.valor); });
+        if (b.travado && opc.exigirTexto) { btn.disabled = true; travados.push(btn); }
+        btn.addEventListener('click', function () { if (!btn.disabled) { fechar(); resolve(b.valor); } });
         elBotoes.appendChild(btn);
       });
-      function fechar() { camada.hidden = true; fundo.removeEventListener('click', aoFundo); }
+
+      entrada.value = '';
+      entrada.hidden = !opc.exigirTexto;
+      if (opc.exigirTexto) {
+        entrada.placeholder = 'Digite ' + opc.exigirTexto;
+        entrada.addEventListener('input', aoDigitar);
+      }
+      function aoDigitar() {
+        var bate = entrada.value.trim().toUpperCase() === opc.exigirTexto.toUpperCase();
+        travados.forEach(function (b) { b.disabled = !bate; });
+      }
+
+      function fechar() {
+        camada.hidden = true;
+        entrada.hidden = true;
+        entrada.removeEventListener('input', aoDigitar);
+        fundo.removeEventListener('click', aoFundo);
+      }
       function aoFundo() { fechar(); resolve(null); }
       fundo.addEventListener('click', aoFundo);
       camada.hidden = false;
+      if (opc.exigirTexto) entrada.focus();
     });
   }
 
@@ -1362,14 +1390,52 @@
 
         '<div class="bloco">' +
           '<h3>Backup</h3>' +
-          '<p class="bloco-desc">Os dados ficam só neste navegador. Exporte de vez em quando para não perder nada.</p>' +
+          '<p class="bloco-desc">Os dados ficam só neste navegador. Uma cópia fora dele é o que salva você se perder o aparelho.</p>' +
+          '<div id="cartaoBackup"></div>' +
           '<div class="linha-acoes">' +
-            '<button type="button" class="botao botao-fantasma" id="btnExportar">' + Icones.get('download') + ' Exportar</button>' +
+            '<button type="button" class="botao botao-fantasma" id="btnExportar">' + Icones.get('download') + ' Exportar cópia</button>' +
             '<button type="button" class="botao botao-fantasma" id="btnImportar">' + Icones.get('upload') + ' Importar</button>' +
             '<input type="file" id="fArquivoBackup" accept="application/json" hidden>' +
           '</div>' +
         '</div>' +
+
+        '<div class="bloco">' +
+          '<h3>Pontos de restauração</h3>' +
+          '<p class="bloco-desc">Fotografias automáticas guardadas dentro do app. Servem para voltar atrás de um engano — não substituem o backup em arquivo.</p>' +
+          '<div id="listaPontos"></div>' +
+        '</div>' +
+
+        '<div class="bloco bloco--risco">' +
+          '<h3>' + Icones.get('alerta') + ' Zona de risco</h3>' +
+          '<p class="bloco-desc">Tudo aqui deixa um ponto de restauração antes de agir.</p>' +
+          '<div class="risco-linha">' +
+            '<div class="ms-texto">' +
+              '<strong>Limpar histórico antigo</strong>' +
+              '<span class="risco-nota">Apaga contas já pagas e antigas. Nunca apaga conta usada por uma meta.</span>' +
+            '</div>' +
+            '<div class="risco-acao">' +
+              '<select class="select" id="selCorteLimpeza">' +
+                '<option value="6">mais de 6 meses</option>' +
+                '<option value="12" selected>mais de 1 ano</option>' +
+                '<option value="24">mais de 2 anos</option>' +
+              '</select>' +
+              '<button type="button" class="botao botao-fantasma" id="btnLimparAntigas">Limpar</button>' +
+            '</div>' +
+          '</div>' +
+          '<div class="risco-linha">' +
+            '<div class="ms-texto">' +
+              '<strong>Apagar todos os dados</strong>' +
+              '<span class="risco-nota">Zera contas, metas e categorias criadas por você.</span>' +
+            '</div>' +
+            '<div class="risco-acao">' +
+              '<button type="button" class="botao botao-perigo" id="btnApagarTudo">Apagar tudo</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
       '</div>';
+
+    desenharCartaoBackup();
+    desenharPontos();
 
     selSeg(document.getElementById('segTema'), cfg.tema === 'claro' ? 'claro' : (cfg.tema === 'escuro' ? 'escuro' : 'sistema'));
 
@@ -1389,16 +1455,7 @@
       aplicarTema();
     });
 
-    document.getElementById('btnExportar').addEventListener('click', function () {
-      var blob = new Blob([Store.exportarBackup()], { type: 'application/json' });
-      var url = URL.createObjectURL(blob);
-      var a = document.createElement('a');
-      a.href = url; a.download = 'financas-backup-' + Datas.hoje() + '.json';
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      toast('Backup exportado.');
-    });
-
+    document.getElementById('btnExportar').addEventListener('click', baixarCopia);
     document.getElementById('btnImportar').addEventListener('click', function () {
       document.getElementById('fArquivoBackup').click();
     });
@@ -1406,12 +1463,232 @@
       var arq = ev.target.files[0];
       if (!arq) return;
       var leitor = new FileReader();
-      leitor.onload = function () {
-        try { Store.importarBackup(leitor.result); toast('Backup importado.'); renderRota(); }
-        catch (e) { toast('Arquivo inválido: ' + e.message); }
-      };
+      leitor.onload = function () { perguntarComoImportar(leitor.result); };
       leitor.readAsText(arq);
       ev.target.value = '';
+    });
+
+    document.getElementById('btnApagarTudo').addEventListener('click', apagarTudoComFreio);
+    document.getElementById('btnLimparAntigas').addEventListener('click', function () {
+      limparAntigas(Number(document.getElementById('selCorteLimpeza').value));
+    });
+  }
+
+  // ---------------------------------------------------------------- BACKUP: cartão
+  /**
+   * Dois cartões diferentes de proposito. No PC, a File System Access API existe e o
+   * usuario ganha o "Atualizar" — mesmo arquivo, sem duplicata. No celular ela nao existe,
+   * e insistir num botao inerte seria pior que nao ter: la o cartao vira aviso, dizendo
+   * ha quantos dias o backup esta velho e quantas alteracoes aconteceram desde entao.
+   */
+  function desenharCartaoBackup() {
+    var alvo = document.getElementById('cartaoBackup');
+    if (!alvo) return;
+    var st = Store.statusBackup();
+
+    if (!Arquivo.suportado()) { alvo.innerHTML = cartaoAviso(st); return; }
+
+    Arquivo.vinculado().then(function (h) {
+      if (!h) {
+        alvo.innerHTML =
+          '<div class="bk-cartao">' +
+            '<div class="ms-texto"><strong>Nenhum arquivo vinculado</strong>' +
+            '<span class="bk-nota">Escolha um arquivo uma vez e depois é só um toque para atualizá-lo — sem virar um monte de cópia.</span></div>' +
+            '<div class="bk-acoes"><button type="button" class="botao botao-principal" id="btnVincular">Escolher arquivo</button></div>' +
+          '</div>';
+        document.getElementById('btnVincular').addEventListener('click', vincularArquivo);
+        return;
+      }
+      alvo.innerHTML =
+        '<div class="bk-cartao bk-cartao--ativo">' +
+          '<div class="ms-texto">' +
+            '<strong>' + Icones.get('download') + ' ' + h.name + '</strong>' +
+            '<span class="bk-nota">' + textoDoUltimo(st) + '</span>' +
+          '</div>' +
+          '<div class="bk-acoes">' +
+            '<button type="button" class="botao botao-principal" id="btnAtualizarArquivo">' + Icones.get('repetir') + ' Atualizar</button>' +
+            '<button type="button" class="botao botao-fantasma botao-mini" id="btnTrocarArquivo">Trocar</button>' +
+          '</div>' +
+        '</div>';
+      document.getElementById('btnAtualizarArquivo').addEventListener('click', atualizarArquivo);
+      document.getElementById('btnTrocarArquivo').addEventListener('click', vincularArquivo);
+    });
+  }
+
+  function cartaoAviso(st) {
+    if (!st.ultimo) {
+      return '<div class="bk-cartao bk-cartao--alerta">' +
+        '<div class="ms-texto"><strong>Você ainda não fez backup</strong>' +
+        '<span class="bk-nota">Se este navegador limpar os dados, não há de onde voltar.</span></div></div>';
+    }
+    var dias = diasDesde(st.ultimo.em);
+    var urgente = dias >= 7 || st.alteracoes >= 10;
+    var quando = dias === 0 ? 'hoje' : (dias === 1 ? 'ontem' : 'há ' + dias + ' dias');
+    var mudou = st.alteracoes === 0
+      ? 'Nada mudou desde então.'
+      : st.alteracoes + (st.alteracoes === 1 ? ' alteração' : ' alterações') + ' desde então.';
+    return '<div class="bk-cartao' + (urgente ? ' bk-cartao--alerta' : '') + '">' +
+      '<div class="ms-texto"><strong>Último backup ' + quando + '</strong>' +
+      '<span class="bk-nota">' + mudou + '</span></div></div>';
+  }
+
+  function textoDoUltimo(st) {
+    if (!st.ultimo) return 'Ainda não atualizado. Toque em Atualizar para gravar agora.';
+    var dias = diasDesde(st.ultimo.em);
+    var quando = dias === 0 ? 'hoje, ' + horaDe(st.ultimo.em) : (dias === 1 ? 'ontem' : 'há ' + dias + ' dias');
+    var mudou = st.alteracoes === 0 ? 'em dia' : st.alteracoes + ' alteração(ões) depois';
+    return 'atualizado ' + quando + ' · ' + st.ultimo.contas + ' contas · ' + mudou;
+  }
+
+  /**
+   * Diferenca em dias de CALENDARIO, nao em horas corridas. Ontem as 19h e "ontem" mesmo
+   * quando faltam 12 horas para completar 24 — contar por hora fazia a tela dizer "hoje"
+   * para um ponto do dia anterior.
+   */
+  function diasDesde(iso) {
+    var d = new Date(iso);
+    var a = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    var agora = new Date();
+    var b = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
+    return Math.max(0, Math.round((b - a) / 86400000));
+  }
+  function horaDe(iso) {
+    var d = new Date(iso), p = function (n) { return (n < 10 ? '0' : '') + n; };
+    return p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+
+  function baixarCopia() {
+    var blob = new Blob([Store.exportarBackup()], { type: 'application/json' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = 'financas-backup-' + Datas.hoje() + '.json';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    Store.registrarBackup('download');
+    toast('Cópia exportada.');
+    desenharCartaoBackup();
+  }
+
+  function vincularArquivo() {
+    Arquivo.escolher('financas.json').then(function () {
+      return Arquivo.atualizar(Store.exportarBackup());
+    }).then(function (nome) {
+      if (nome) { Store.registrarBackup('arquivo'); toast('Arquivo vinculado e gravado.'); }
+      desenharCartaoBackup();
+    }).catch(function () { /* o usuário fechou o seletor — nada a fazer */ });
+  }
+
+  function atualizarArquivo() {
+    Arquivo.atualizar(Store.exportarBackup()).then(function (nome) {
+      if (!nome) { toast('Permissão negada — escolha o arquivo de novo.'); return; }
+      Store.registrarBackup('arquivo');
+      toast('Backup atualizado em ' + nome + '.');
+      desenharCartaoBackup();
+    }).catch(function (e) { toast('Não deu para gravar: ' + e.message); });
+  }
+
+  // ---------------------------------------------------------------- BACKUP: importar
+  function perguntarComoImportar(texto) {
+    var dado;
+    try { dado = JSON.parse(texto); } catch (e) { toast('Arquivo inválido: não é JSON.'); return; }
+    if (!Backup.valido(dado)) { toast('Arquivo inválido: não parece um backup do Finanças.'); return; }
+
+    var d = Backup.diagnosticar(Store.estadoAtual(), dado);
+    var linhas = [
+      'No arquivo: ' + d.contasNoArquivo + ' contas · ' + d.metasNoArquivo + ' metas.',
+      'Você tem agora: ' + d.contasNoApp + ' contas · ' + d.metasNoApp + ' metas.',
+      '',
+      'Juntar acrescenta ' + d.contasNovas + ' conta(s) e ' + d.metasNovas + ' meta(s) que faltam. Nada é apagado.',
+      'Substituir apaga tudo e usa só o arquivo' + (d.perdidasSeSubstituir ? ' — você perde ' + d.perdidasSeSubstituir + ' conta(s).' : '.')
+    ].join('\n');
+
+    confirmar('Como importar?', linhas, [
+      { rotulo: 'Juntar', valor: 'juntar', classe: 'botao-principal' },
+      { rotulo: 'Substituir', valor: 'substituir', classe: 'botao-perigo' },
+      { rotulo: 'Cancelar', valor: null }
+    ]).then(function (modo) {
+      if (!modo) return;
+      try {
+        var r = Store.importarBackup(texto, modo);
+        toast(modo === 'juntar' ? 'Juntado — agora são ' + r.contas + ' contas.' : 'Substituído — ' + r.contas + ' contas.');
+        renderRota();
+      } catch (e) { toast('Falhou: ' + e.message); }
+    });
+  }
+
+  // ---------------------------------------------------------------- BACKUP: pontos
+  function desenharPontos() {
+    var alvo = document.getElementById('listaPontos');
+    if (!alvo) return;
+    var pontos = Store.listarPontos();
+    if (!pontos.length) {
+      alvo.innerHTML = '<p class="vazio-nota">Nenhum ponto ainda. O primeiro nasce sozinho amanhã, ou agora se você importar/apagar algo.</p>';
+      return;
+    }
+    alvo.innerHTML = pontos.map(function (p) {
+      var dias = diasDesde(p.em);
+      var quando = dias === 0 ? 'hoje, ' + horaDe(p.em) : (dias === 1 ? 'ontem, ' + horaDe(p.em) : 'há ' + dias + ' dias');
+      return '<div class="ponto-linha">' +
+        '<div class="ms-texto"><strong>' + quando + '</strong>' +
+        '<span class="ponto-nota">' + p.contas + ' contas · ' + p.metas + ' metas · ' + p.motivo + '</span></div>' +
+        '<button type="button" class="botao botao-fantasma botao-mini" data-ponto="' + p.id + '">Restaurar</button>' +
+      '</div>';
+    }).join('');
+
+    alvo.addEventListener('click', function (ev) {
+      var b = ev.target.closest('[data-ponto]');
+      if (!b) return;
+      confirmar('Restaurar este ponto?',
+        'Os dados de agora são guardados num ponto novo antes — dá para voltar.',
+        [{ rotulo: 'Restaurar', valor: true, classe: 'botao-principal' }, { rotulo: 'Cancelar', valor: null }]
+      ).then(function (ok) {
+        if (!ok) return;
+        if (Store.restaurarPonto(b.getAttribute('data-ponto'))) { toast('Restaurado.'); renderRota(); }
+        else toast('Este ponto não existe mais.');
+      });
+    });
+  }
+
+  // ---------------------------------------------------------------- ZONA DE RISCO
+  function apagarTudoComFreio() {
+    var e = Store.estadoAtual();
+    confirmar('Apagar todos os dados?',
+      'Isso apaga ' + (e.contas || []).length + ' conta(s) e ' + (e.metas || []).length + ' meta(s).\n' +
+      'Um ponto de restauração é criado antes — dá para voltar por aqui mesmo.\n' +
+      'Digite APAGAR para confirmar.',
+      [{ rotulo: 'Apagar tudo', valor: true, classe: 'botao-perigo', travado: true },
+       { rotulo: 'Cancelar', valor: null }],
+      { exigirTexto: 'APAGAR' }
+    ).then(function (ok) {
+      if (!ok) return;
+      Store.apagarTudo();
+      toast('Tudo apagado. Dá para voltar em Pontos de restauração.');
+      renderRota();
+    });
+  }
+
+  function limparAntigas(meses) {
+    var corte = Datas.somarDias(Datas.hoje(), -Math.round(meses * 30.44));
+    var estado = Store.estadoAtual();
+    var previa = Backup.podarPagas(estado, corte);
+
+    if (!previa.removidas) {
+      toast('Nada a limpar' + (previa.preservadas ? ' — as antigas estão em uso por metas.' : '.'));
+      return;
+    }
+    var extra = previa.preservadas
+      ? '\n' + previa.preservadas + (previa.preservadas === 1 ? ' fica' : ' ficam') +
+        ' de fora porque uma meta já abateu.' : '';
+
+    confirmar('Limpar histórico?',
+      'Isso apaga ' + previa.removidas + ' conta(s) já paga(s), vencida(s) antes de ' +
+      Formatar.dataLonga(corte) + '.' + extra,
+      [{ rotulo: 'Limpar', valor: true, classe: 'botao-perigo' }, { rotulo: 'Cancelar', valor: null }]
+    ).then(function (ok) {
+      if (!ok) return;
+      var r = Store.limparPagasAntesDe(corte);
+      toast(r.removidas + ' conta(s) removida(s).');
+      renderRota();
     });
   }
 

@@ -30,6 +30,8 @@ app/
     ├── filtros.js         período → intervalo; filtro combinado (período/status/categoria/tipo)
     ├── analise.js         ⭐ números do dashboard: resumo do mês, comparativo, por categoria,
     │                        por semana, próximos vencimentos, prazo em linguagem humana
+    ├── backup.js           mesclar/diagnosticar/podar — puro, sem localStorage nem DOM
+    ├── arquivo.js          File System Access + handle em IndexedDB (só desktop; ver D009.1)
     ├── armazenamento.js  Store: única porta de entrada pro localStorage
     ├── formatar.js        dinheiro (BRL), datas, texto
     ├── graficos.js        donut, barras por semana, anel de progresso — SVG puro, sem lib
@@ -73,8 +75,19 @@ de `analise.js` ou `filtros.js`, e por isso é testável em Node sem navegador.
     }
   ],
   categorias: ["casa", "cartão", "transporte", "saúde", "lazer", "outros", ...],
-  config: { tema: "claro" | "escuro" | "sistema" }
+  config: {
+    tema: "claro" | "escuro" | "sistema",
+    versaoDados: 0,                     // +1 a cada salvar — vira "N alterações desde o backup"
+    ultimoBackup: null | { em, versaoDados, contas, metas, destino }
+  }
 }
+```
+
+**Chaves auxiliares** (fora de `financas_v1` de propósito — ver D009.4):
+
+```js
+financas_v1_pontos       // até 5 pontos de restauração [{id, em, motivo, contas, metas, dado}]
+financas_v1_ultimo_ponto // "AAAA-MM-DD" — controla a fotografia automática diária
 ```
 
 **Regra de exclusividade:** uma conta nunca é `recorrente: true` **e** tem `parcela` ao mesmo
