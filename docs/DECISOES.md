@@ -14,6 +14,7 @@
 
 | # | Decisão | Data | Status |
 |---|---|---|---|
+| D011 | App instalado retém a permissão do arquivo do Drive entre sessões (hipótese confirmada) | 2026-07-29 | Ativa |
 | D010 | Push é do usuário; exceção exige autorização explícita — e a guarda só cobre Bash | 2026-07-28 | Ativa |
 | D009 | Backup: "Atualizar" só no PC, e nenhuma operação destrutiva sem volta | 2026-07-28 | Ativa |
 | D008 | Regras de negócio quebradas por assunto em `docs/regras/` | 2026-07-27 | Ativa |
@@ -44,6 +45,26 @@ for acionada** (`docs/GOVERNANCA.md` §6).
 ---
 
 _(as decisões entram abaixo, mais nova primeiro)_
+
+### D011 — App instalado retém a permissão do arquivo do Drive entre sessões (2026-07-29)
+**Decisão/achado:** confirmado — instalar o Finanças na tela de início resolve o problema do
+botão "reconectar" que reaparecia toda vez que o Android descartava a aba. Pelo app instalado,
+a permissão de escrita no arquivo vinculado (File System Access API) **sobrevive** entre
+sessões, mesmo com o app fechado por completo e reaberto horas depois.
+**Motivo de registrar:** era hipótese declarada no plano 0007, não promessa — a documentação do
+Chrome indicava isso, mas só valeria se funcionasse no aparelho real do usuário. Confirmado.
+**Procedência — não foi só relato do usuário, foi checado de forma independente.** O usuário
+apertou "Atualizar" pelo app instalado, fechou, e apertou de novo na madrugada de 29/07 (~00:38)
+sem precisar reconectar. Isso foi confirmado lendo o `modifiedTime` do `financas.json` na pasta
+"Arquivos Claude/App de Finanças" do Google Drive via `mcp__claude_ai_Google_Drive`
+(`2026-07-29T03:38:07Z` UTC = ~00:38 no horário local) — batendo exatamente com o que o usuário
+lembrava, e vindo de uma fonte fora do controle da conversa.
+**Efeito colateral notado, sem instalar nada de propósito:** a primeira tentativa de instalação
+não completava — Chrome tinha um registro de uma tentativa anterior malsucedida. Resolvido
+limpando os dados do site em Chrome → Configurações → Configurações do site → (o site) →
+Excluir dados. Vale como primeiro passo se o sintoma "instalando... e o ícone nunca aparece"
+se repetir no futuro, antes de suspeitar de bug no app.
+**Relacionado:** Plano 0007 (Concluído), D009 (o vínculo com o arquivo em si).
 
 ### D010 — Push é do usuário; exceção exige autorização explícita — e a guarda só cobre Bash (2026-07-28)
 **Decisão:** `git push` continua sendo do usuário. A IA só publica mediante **autorização

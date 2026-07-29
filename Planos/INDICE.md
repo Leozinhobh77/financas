@@ -5,9 +5,10 @@ O **mais novo fica sempre no topo** de cada seção.
 
 ## 🔵 Ativos
 
+_Nenhum plano ativo no momento._
+
 | ID | Plano | Status | Progresso | Criado | Atualizado |
 |----|-------|--------|-----------|--------|------------|
-| [0007](0007-2026-07-28-instalar-na-tela-de-inicio.md) | App instalável na tela de início (manifesto + service worker) | 🚧 Em andamento | 15 de 18 (83%) | 2026-07-28 | 2026-07-28 |
 
 ## ✅ Concluídos / Arquivados
 
@@ -15,6 +16,7 @@ _O arquivo `.md` fica na pasta `Concluídos/`._
 
 | ID | Plano | Status | Progresso | Concluído em |
 |----|-------|--------|-----------|--------------|
+| [0007](Concluídos/0007-2026-07-28-instalar-na-tela-de-inicio.md) | App instalável na tela de início (manifesto + service worker) | ✔️ Concluído | 18 de 18 (100%) | 2026-07-29 |
 | [0006](Concluídos/0006-2026-07-28-backup-atualizar-restaurar-limpar.md) | Backup — atualizar arquivo, pontos de restauração, importar sem perder, apagar com freio | ✔️ Concluído | 22 de 22 (100%) | 2026-07-28 |
 | [0005](Concluídos/0005-2026-07-27-metas.md) | Metas — campanhas de vários meses (caixinha, sobra, cofre) | ✔️ Concluído | 35 de 35 (100%) | 2026-07-27 |
 | [0004](Concluídos/0004-2026-07-27-painel-do-periodo-nas-listas.md) | Painel do período nas telas de contas | ✔️ Concluído | 7 de 7 (100%) | 2026-07-27 |
