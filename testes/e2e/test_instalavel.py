@@ -104,8 +104,20 @@ with sync_playwright() as pw:
 
     # ------------------------------------------------------- 2. SERVICE WORKER
     secao("2. Service worker")
+    # `serviceWorker.ready` resolve assim que existe registro ativo, mas o worker ainda pode
+    # estar em `activating` por alguns milissegundos. Ler o estado uma vez só torna este teste
+    # intermitente — e teste que falha às vezes é pior que teste nenhum.
     estado = page.evaluate("""async () => {
       const reg = await navigator.serviceWorker.ready;
+      const sw = reg.active;
+      if (sw && sw.state !== 'activated') {
+        await new Promise((ok) => {
+          const t = setTimeout(ok, 5000);
+          sw.addEventListener('statechange', () => {
+            if (sw.state === 'activated') { clearTimeout(t); ok(); }
+          });
+        });
+      }
       return { ativo: !!reg.active, estado: reg.active && reg.active.state, escopo: reg.scope };
     }""")
     checa(estado["ativo"] and estado["estado"] == "activated",

@@ -39,8 +39,12 @@ app/
     ├── analise.js         ⭐ números do dashboard: resumo do mês, comparativo, por categoria,
     │                        por semana, próximos vencimentos, prazo em linguagem humana
     ├── backup.js           mesclar/diagnosticar/podar — puro, sem localStorage nem DOM
-    ├── arquivo.js          File System Access + handle em IndexedDB (só desktop; ver D009.1)
-    ├── armazenamento.js  Store: única porta de entrada pro localStorage
+    ├── arquivo.js          File System Access + handle em IndexedDB. `atualizar` PEDE permissão
+    │                        (só dentro de clique); `atualizarSePuder` só grava se já puder —
+    │                        é a separação que deixa o auto-save existir sem incomodar
+    ├── armazenamento.js  Store: única porta de entrada pro localStorage. `aoAlterar` avisa
+    │                        quem quiser saber que o dado mudou (é o gatilho do auto-save),
+    │                        sem o Store saber nada de arquivo ou DOM
     ├── formatar.js        dinheiro (BRL), datas, texto
     ├── graficos.js        donut, barras por semana, anel de progresso — SVG puro, sem lib
     ├── render.js           funções de desenho de tela (sem lógica de negócio)

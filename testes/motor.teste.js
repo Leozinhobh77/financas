@@ -1596,6 +1596,99 @@ teste('mesclar ignora item sem id (arquivo corrompido não injeta lixo)', functi
 });
 
 // ============================================================
+secao('Plano 0008 — Store.aoAlterar (o gatilho do auto-save)');
+// ============================================================
+
+/**
+ * `armazenamento.js` é o primeiro módulo com efeito colateral a ser testado aqui, e por isso
+ * precisa de um `localStorage` de mentira. Vale o incômodo: `aoAlterar` é o gatilho de TODA
+ * gravação automática no arquivo do usuário — se ele disparar demais, o app fica subindo
+ * arquivo à toa; se disparar de menos, o backup silenciosamente para de acontecer.
+ */
+function StoreLimpo() {
+  var memoria = {};
+  global.localStorage = {
+    getItem: function (k) { return Object.prototype.hasOwnProperty.call(memoria, k) ? memoria[k] : null; },
+    setItem: function (k, v) { memoria[k] = String(v); },
+    removeItem: function (k) { delete memoria[k]; }
+  };
+  delete require.cache[require.resolve('../app/js/armazenamento.js')];
+  return require('../app/js/armazenamento.js');
+}
+
+teste('0008-1: aoAlterar dispara uma vez por gravação, nem mais nem menos', function () {
+  var Store = StoreLimpo();
+  var vezes = 0;
+  Store.aoAlterar(function () { vezes++; });
+
+  Store.adicionarConta({ id: 'a1', tipo: 'pagar', valor: 10, vencimento: '2026-07-10', status: 'pendente' });
+  assert.strictEqual(vezes, 1, 'adicionar conta avisa uma vez');
+
+  Store.atualizarConta('a1', { valor: 20 });
+  assert.strictEqual(vezes, 2, 'atualizar conta avisa uma vez');
+
+  Store.removerConta('a1');
+  assert.strictEqual(vezes, 3, 'remover conta avisa uma vez');
+});
+
+teste('0008-2: o ouvinte recebe o estado JÁ gravado (não a versão anterior)', function () {
+  var Store = StoreLimpo();
+  var visto = null;
+  Store.aoAlterar(function (estado) { visto = estado; });
+
+  Store.adicionarConta({ id: 'b1', tipo: 'pagar', valor: 99, vencimento: '2026-08-01', status: 'pendente' });
+  assert.strictEqual(visto.contas.length, 1, 'o estado avisado já contém a conta nova');
+  assert.strictEqual(visto.contas[0].id, 'b1');
+  // Prova que não é uma cópia solta: o que está em disco bate com o que o ouvinte viu.
+  assert.strictEqual(Store.listarContas().length, 1);
+});
+
+teste('0008-3: registrarBackup NÃO dispara o aviso (senão o auto-save se auto-alimentaria)', function () {
+  var Store = StoreLimpo();
+  Store.adicionarConta({ id: 'c1', tipo: 'pagar', valor: 5, vencimento: '2026-08-01', status: 'pendente' });
+
+  var vezes = 0;
+  Store.aoAlterar(function () { vezes++; });
+  Store.registrarBackup('arquivo-auto');
+
+  assert.strictEqual(vezes, 0,
+    'registrar backup usa gravar() e não salvar(): sem isto, gravar o arquivo avisaria que ' +
+    'algo mudou, agendando outra gravação, para sempre');
+});
+
+teste('0008-4: um ouvinte que estoura não derruba a gravação do dado', function () {
+  var Store = StoreLimpo();
+  Store.aoAlterar(function () { throw new Error('ouvinte defeituoso'); });
+
+  var erroOriginal = console.error;
+  console.error = function () { /* silencia o ruído esperado deste teste */ };
+  try {
+    Store.adicionarConta({ id: 'd1', tipo: 'pagar', valor: 7, vencimento: '2026-08-01', status: 'pendente' });
+  } finally {
+    console.error = erroOriginal;
+  }
+  assert.strictEqual(Store.listarContas().length, 1, 'o dado do usuário foi salvo mesmo assim');
+});
+
+teste('0008-5: vários ouvintes, todos chamados, mesmo se um falhar', function () {
+  var Store = StoreLimpo();
+  var a = 0, c = 0;
+  Store.aoAlterar(function () { a++; });
+  Store.aoAlterar(function () { throw new Error('do meio'); });
+  Store.aoAlterar(function () { c++; });
+
+  var erroOriginal = console.error;
+  console.error = function () {};
+  try {
+    Store.adicionarConta({ id: 'e1', tipo: 'pagar', valor: 1, vencimento: '2026-08-01', status: 'pendente' });
+  } finally {
+    console.error = erroOriginal;
+  }
+  assert.strictEqual(a, 1);
+  assert.strictEqual(c, 1, 'o ouvinte depois do que falhou ainda foi chamado');
+});
+
+// ============================================================
 process.stdout.write('\n' + '='.repeat(60) + '\n');
 if (falhas.length === 0) {
   process.stdout.write('TUDO PASSOU — ' + total + ' de ' + total + ' testes\n');

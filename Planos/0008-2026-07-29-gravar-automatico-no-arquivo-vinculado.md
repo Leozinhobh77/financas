@@ -1,7 +1,7 @@
 ---
 id: 0008
 titulo: Gravar automático no arquivo vinculado (auto-save + indicador honesto)
-status: 📝 Rascunho
+status: 🚧 Em andamento
 prioridade: Alta
 criado_em: 2026-07-29
 atualizado_em: 2026-07-29
@@ -78,11 +78,15 @@ nada — e ele sempre sabe, olhando a tela, se está tudo sincronizado ou se pre
 - **`registrarBackup` ganha um novo valor de `destino`: `'arquivo-auto'`**, pra diferenciar do
   clique manual no histórico. Conferido: `destino` hoje só é exibido como texto, nunca comparado
   em nenhum lugar do código — adicionar um valor novo não quebra nada existente.
-- ⏳ **Decisão pendente:** manter também a cópia diária carimbada no Drive
-  (`financas-2026-07-29.json`), sugerida lá no início da conversa como rede de segurança — se o
-  auto-save gravar um erro, ele sobe pro arquivo principal na hora; a cópia diária seria o único
-  jeito de voltar pra uma versão de ontem sem depender só dos pontos de restauração locais
-  (que não sobrevivem a trocar de aparelho ou limpar o navegador). Ver Pendências.
+- **Decisão tomada (2026-07-29): a cópia diária carimbada fica FORA deste plano.** Investigando
+  como implementá-la, apareceu uma limitação real: o vínculo de hoje é com um **arquivo**
+  específico, não com uma pasta — é assim que a File System Access API funciona. Criar um
+  arquivo novo por dia ao lado do principal exigiria **uma segunda permissão** (a de pasta),
+  pedida separadamente, com seu próprio ciclo de vida e seu próprio "reconectar" quando cair.
+  Isso é uma peça a mais para manter de pé, em cima de um mecanismo que acabou de ser
+  comprovado funcionando (D011). O usuário optou por não pagar esse custo agora: a rede de
+  segurança continua sendo os pontos de restauração locais (plano 0006) mais o botão
+  "Exportar cópia", que **já gera nome com data** (`financas-backup-AAAA-MM-DD.json`).
 
 ## Porta de Entrada (Definition of Ready)
 
@@ -92,54 +96,63 @@ nada — e ele sempre sabe, olhando a tela, se está tudo sincronizado ou se pre
       `garantirPermissao` (que pede, não só verifica) — falta a versão "só verifica".
 - [x] Não conflita com `docs/PRD.md`/`docs/SPEC.md` — continua um único aparelho escrevendo,
       sem servidor, sem sincronização entre dispositivos (isso continua fora de escopo).
-- [ ] Plano revisado com o usuário e **aprovado** antes de iniciar a Fase 1.
-- [ ] Autorização explícita para começar a implementar.
+- [x] Plano revisado com o usuário e **aprovado** antes de iniciar a Fase 1.
+- [x] Autorização explícita para começar a implementar (2026-07-29, sem a cópia diária).
 - [x] Working tree limpo (plano 0007 e D011 já commitados).
 
 ## Etapas
 
-> Progresso: 0 de 16 tarefas (0%)
+> Progresso: 15 de 16 tarefas (94%) — tudo implementado e testado; falta só a verificação no
+> aparelho real, que depende do usuário.
 
-### Fase 1 — O aviso de mudança (camada pura)
-- [ ] `armazenamento.js`: adicionar `Store.aoAlterar(fn)` — registra um ouvinte chamado ao fim
+### Fase 1 — O aviso de mudança (camada pura) ✔️
+- [x] `armazenamento.js`: adicionar `Store.aoAlterar(fn)` — registra um ouvinte chamado ao fim
       de `salvar()`, depois do `versaoDados` já ter subido.
-- [ ] Teste em Node (novo shim mínimo de `localStorage` em memória, só pra este teste): o
-      ouvinte dispara exatamente uma vez por `salvar()`, recebe o estado atualizado.
+- [x] Teste em Node (novo shim mínimo de `localStorage` em memória, só pra este teste): o
+      ouvinte dispara exatamente uma vez por `salvar()`, recebe o estado atualizado. **5 testes
+      novos** (0008-1 a 0008-5), incluindo o que prova que `registrarBackup` **não** dispara o
+      aviso — sem isso, gravar o arquivo avisaria "mudou" e agendaria outra gravação, em laço.
 
-### Fase 2 — Verificar permissão sem pedir
-- [ ] `arquivo.js`: adicionar `Arquivo.permissaoConcedida(h)` — só `queryPermission`, nunca
+### Fase 2 — Verificar permissão sem pedir ✔️
+- [x] `arquivo.js`: adicionar `Arquivo.permissaoConcedida(h)` — só `queryPermission`, nunca
       `requestPermission`. Não pede nada, só responde `true`/`false`.
+- [x] (não previsto, necessário) `Arquivo.atualizarSePuder(texto)` — o par de `atualizar` para
+      uso automático: grava se já puder, devolve `null` sem abrir diálogo se não puder.
 
-### Fase 3 — O motor do auto-save
-- [ ] `app.js`: no bootstrap, `Store.aoAlterar(agendarGravacaoAutomatica)`.
-- [ ] `agendarGravacaoAutomatica`: debounce de 2s (reseta o timer a cada chamada nova).
-- [ ] `gravarAutomaticamente()`: pega o vínculo; sem vínculo, não faz nada; com vínculo, checa
+### Fase 3 — O motor do auto-save ✔️
+- [x] `app.js`: no bootstrap, `Store.aoAlterar(agendarGravacaoAutomatica)`.
+- [x] `agendarGravacaoAutomatica`: debounce de 2s (reseta o timer a cada chamada nova).
+- [x] `gravarAutomaticamente()`: pega o vínculo; sem vínculo, não faz nada; com vínculo, checa
       `permissaoConcedida`; se sim, grava e chama `Store.registrarBackup('arquivo-auto')`
       silenciosamente; se não, só atualiza o indicador para "pendente".
-- [ ] `document.addEventListener('visibilitychange', ...)`: ao ficar `hidden`, **descarta o
+- [x] `document.addEventListener('visibilitychange', ...)`: ao ficar `hidden`, **descarta o
       timer do debounce e grava na hora** (é o momento em que o Android pode matar a aba).
-- [ ] Ao voltar a ficar `visible`: reconferir permissão e, se havia gravação pendente, tentar de
+- [x] Ao voltar a ficar `visible`: reconferir permissão e, se havia gravação pendente, tentar de
       novo — silenciosamente se der certo.
 
-### Fase 4 — Indicador honesto na tela
-- [ ] `desenharCartaoBackup()`: acrescentar um terceiro estado visual junto ao já existente
+### Fase 4 — Indicador honesto na tela ✔️
+- [x] `desenharCartaoBackup()`: acrescentar um terceiro estado visual junto ao já existente
       ("sem vínculo" / card ativo) — bolinha verde "sincronizado automaticamente" ou bolinha
       laranja "toque para reconectar", sem remover o botão "Atualizar" manual (continua servindo
       pra forçar agora, por exemplo antes de fechar o app faltando pouco pro debounce completar).
-- [ ] Tocar no estado laranja dispara o mesmo fluxo do botão "Atualizar" hoje (é clique real,
+      O texto sempre diz o estado por extenso: cor não pode ser o único portador da informação.
+- [x] Tocar no estado laranja dispara o mesmo fluxo do botão "Atualizar" hoje (é clique real,
       então pode pedir permissão de verdade).
 
 ### Fase 5 — Testes e verificação
-- [ ] `testes/e2e/test_autosave.py`: **stub** de `window.Arquivo` (a API real não existe em
+- [x] `testes/e2e/test_autosave.py`: **stub** de `window.Arquivo` (a API real não existe em
       `file://` nem no Chromium headless — mesma limitação já documentada em `test_backup.py`)
       simulando os três estados (sem vínculo / permissão concedida / permissão negada) e
       confirmando que o cartão mostra o texto e a cor certos em cada um; confirma que o debounce
       não grava a cada tecla, só depois de ~2s parado; confirma zero erros de console.
-- [ ] Rodar a suíte inteira sem regressão (motor + 5 e2e existentes).
-- [ ] Registrar o novo teste em `AGENTS.md` §2.
+      **16 de 16 verificações.**
+- [x] Rodar a suíte inteira sem regressão: motor 149/149, `test_app_financas`, `test_metas`,
+      `test_sem_corte`, `test_backup` 45/45, `test_instalavel` 24/24 — todas passando.
+- [x] Registrar o novo teste em `AGENTS.md` §2.
 - [ ] **Verificação no aparelho real** (só isso prova de verdade, como em 0007): mexer no app
       instalado, esperar uns segundos sem tocar em nada, e conferir no Drive que o arquivo
       mudou sozinho — mesma técnica usada para provar D011 (`modifiedTime` do arquivo).
+      **Depende do usuário publicar e testar.**
 
 ## Critérios de aceite (Definition of Done)
 
@@ -191,6 +204,17 @@ nada — e ele sempre sabe, olhando a tela, se está tudo sincronizado ou se pre
 - 2026-07-29 — Plano criado (Rascunho), a partir da decisão do usuário de seguir para o
   auto-save depois de fechado o plano 0007. Investigação prévia feita: ponto único de gravação
   confirmado, ausência de listeners de ciclo de vida confirmada, `destino` livre para novo valor.
+- 2026-07-29 — Aprovado **sem a cópia diária** (ver Decisões). **Fases 1 a 5 implementadas e
+  testadas.** Dois bugs reais foram encontrados pelo próprio teste novo, não por revisão:
+  **(1)** `desenharCartaoBackup` escrevia num elemento já removido do documento quando o
+  usuário trocava de tela durante as chamadas assíncronas — corrida que já existia antes e
+  que a segunda ida assíncrona (checar permissão) tornou provável; resolvido com verificação
+  de "ainda estou na tela" e `querySelector` no próprio cartão em vez de `getElementById` no
+  documento. **(2)** o botão "Atualizar" gravava com sucesso mas não limpava a marca de
+  pendente, deixando o cartão laranja depois de uma gravação boa.
+  Corrigida também uma **intermitência** no `test_instalavel.py` (lia o estado do service
+  worker uma vez só, podendo pegá-lo em `activating`); agora espera o `activated`, confirmado
+  com 3 execuções seguidas 24/24.
 
 ## Pendências / próximos passos
 

@@ -41,6 +41,27 @@
   }
 
   /**
+   * Quem quer saber que o dado mudou. O Store NAO sabe o que os ouvintes fazem — gravar em
+   * arquivo, redesenhar tela, o que for — e e essa ignorancia que o mantem puro e testavel
+   * em Node. Quem liga uma coisa na outra e o app.js, como todo o resto.
+   */
+  var ouvintes = [];
+  function aoAlterar(fn) {
+    if (typeof fn === 'function') ouvintes.push(fn);
+  }
+
+  /**
+   * Um ouvinte que estoura NAO pode derrubar a gravacao: o dado do usuario ja esta salvo
+   * neste ponto, e perder a tela por causa de um efeito colateral seria trocar o essencial
+   * pelo acessorio.
+   */
+  function avisarMudanca(estado) {
+    for (var i = 0; i < ouvintes.length; i++) {
+      try { ouvintes[i](estado); } catch (e) { console.error('Ouvinte de alteração falhou.', e); }
+    }
+  }
+
+  /**
    * Toda gravacao incrementa `config.versaoDados`. E assim que a tela de Ajustes sabe dizer
    * "12 alteracoes desde o ultimo backup" sem precisar carimbar data em cada conta nem
    * comparar o conteudo inteiro — o contador e exato e custa nada.
@@ -50,6 +71,8 @@
     estado.config.versaoDados = (estado.config.versaoDados || 0) + 1;
     pontoDoDia();
     gravar(estado);
+    // Depois de `gravar`: ouvinte que le o estado tem que enxergar o que ja esta em disco.
+    avisarMudanca(estado);
   }
 
   /**
@@ -382,6 +405,7 @@
     apagarTudo: apagarTudo,
     limparPagasAntesDe: limparPagasAntesDe,
     estadoAtual: ler,
+    aoAlterar: aoAlterar,
     CATEGORIAS_PADRAO: CATEGORIAS_PADRAO
   };
 

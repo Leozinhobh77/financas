@@ -1488,30 +1488,55 @@
 
     if (!Arquivo.suportado()) { alvo.innerHTML = cartaoAviso(st); return; }
 
+    /**
+     * Entre o pedido assincrono e a resposta, o usuario pode ter trocado de tela — e ai o
+     * `alvo` que capturamos ja saiu do documento. Escrever nele nao quebra nada, mas procurar
+     * os botoes depois devolve null e estoura. Achado pelo teste do plano 0008.
+     */
+    function aindaNaTela() { return alvo === document.getElementById('cartaoBackup'); }
+
     Arquivo.vinculado().then(function (h) {
+      if (!aindaNaTela()) return;
       if (!h) {
         alvo.innerHTML =
           '<div class="bk-cartao">' +
             '<div class="ms-texto"><strong>Nenhum arquivo vinculado</strong>' +
-            '<span class="bk-nota">Escolha um arquivo uma vez e depois é só um toque para atualizá-lo — sem virar um monte de cópia.</span></div>' +
+            '<span class="bk-nota">Escolha um arquivo uma vez e depois ele se atualiza sozinho — sem virar um monte de cópia.</span></div>' +
             '<div class="bk-acoes"><button type="button" class="botao botao-principal" id="btnVincular">Escolher arquivo</button></div>' +
           '</div>';
-        document.getElementById('btnVincular').addEventListener('click', vincularArquivo);
+        alvo.querySelector('#btnVincular').addEventListener('click', vincularArquivo);
         return;
       }
-      alvo.innerHTML =
-        '<div class="bk-cartao bk-cartao--ativo">' +
-          '<div class="ms-texto">' +
-            '<strong>' + Icones.get('download') + ' ' + h.name + '</strong>' +
-            '<span class="bk-nota">' + textoDoUltimo(st) + '</span>' +
-          '</div>' +
-          '<div class="bk-acoes">' +
-            '<button type="button" class="botao botao-principal" id="btnAtualizarArquivo">' + Icones.get('repetir') + ' Atualizar</button>' +
-            '<button type="button" class="botao botao-fantasma botao-mini" id="btnTrocarArquivo">Trocar</button>' +
-          '</div>' +
-        '</div>';
-      document.getElementById('btnAtualizarArquivo').addEventListener('click', atualizarArquivo);
-      document.getElementById('btnTrocarArquivo').addEventListener('click', vincularArquivo);
+      // O estado real vem da permissao, nao de um palpite: so e "sincronizado" se o navegador
+      // confirmar que da para escrever agora E nao houver gravacao esperando.
+      Arquivo.permissaoConcedida(h).then(function (podeEscrever) {
+        if (!aindaNaTela()) return;
+        var ok = podeEscrever && !pendente;
+        alvo.innerHTML =
+          '<div class="bk-cartao bk-cartao--ativo">' +
+            '<div class="ms-texto">' +
+              '<strong>' + Icones.get('download') + ' ' + h.name + '</strong>' +
+              '<span class="bk-sinal ' + (ok ? 'bk-sinal--ok' : 'bk-sinal--pendente') + '">' +
+                '<span class="bk-bolinha"></span>' +
+                (ok ? 'Sincronizado automaticamente' : 'Pendente — toque para reconectar') +
+              '</span>' +
+              '<span class="bk-nota">' + textoDoUltimo(st) + '</span>' +
+            '</div>' +
+            '<div class="bk-acoes">' +
+              '<button type="button" class="botao botao-principal" id="btnAtualizarArquivo">' + Icones.get('repetir') + ' Atualizar</button>' +
+              '<button type="button" class="botao botao-fantasma botao-mini" id="btnTrocarArquivo">Trocar</button>' +
+            '</div>' +
+          '</div>';
+        // querySelector no proprio cartao, nao getElementById no documento: o cartao e a
+        // fonte da verdade do que acabou de ser desenhado.
+        alvo.querySelector('#btnAtualizarArquivo').addEventListener('click', atualizarArquivo);
+        alvo.querySelector('#btnTrocarArquivo').addEventListener('click', vincularArquivo);
+        // O aviso laranja e clicavel de proposito: e um clique de verdade, entao PODE pedir
+        // permissao — diferente do auto-save, que so verifica.
+        if (!ok) {
+          alvo.querySelector('.bk-sinal--pendente').addEventListener('click', atualizarArquivo);
+        }
+      });
     });
   }
 
@@ -1582,9 +1607,75 @@
     Arquivo.atualizar(Store.exportarBackup()).then(function (nome) {
       if (!nome) { toast('Permissão negada — escolha o arquivo de novo.'); return; }
       Store.registrarBackup('arquivo');
+      // Gravou tudo agora: nao ha mais nada pendente, e o timer do auto-save perdeu a razao
+      // de existir. Sem isto o cartao continuava laranja depois de uma gravacao bem-sucedida.
+      pendente = false;
+      if (timerAuto) { clearTimeout(timerAuto); timerAuto = null; }
       toast('Backup atualizado em ' + nome + '.');
       desenharCartaoBackup();
     }).catch(function (e) { toast('Não deu para gravar: ' + e.message); });
+  }
+
+  // ------------------------------------------------ BACKUP: gravação automática (plano 0008)
+  /**
+   * O auto-save. Regras que fazem ele existir sem incomodar:
+   *
+   * 1. NUNCA pede permissao — so `atualizarSePuder`, que grava se ja puder e devolve null se
+   *    nao. Pedir exige o gesto do usuario (ver `arquivo.js`), entao aqui seria inutil.
+   * 2. NUNCA avisa quando da certo. Um toast a cada 2 segundos seria o mesmo incomodo que o
+   *    usuario pediu para tirar, so que disfarcado. A bolinha no cartao ja conta o estado.
+   * 3. Falhar nao para o app: pendente vira aviso na tela e nova tentativa quando ele voltar.
+   */
+  var ESPERA_AUTO = 2000;
+  var timerAuto = null;
+  var pendente = false;
+
+  function agendarGravacaoAutomatica() {
+    pendente = true;
+    sincronizarCartaoBackup();
+    if (timerAuto) clearTimeout(timerAuto);
+    timerAuto = setTimeout(gravarAutomaticamente, ESPERA_AUTO);
+  }
+
+  function gravarAutomaticamente() {
+    if (timerAuto) { clearTimeout(timerAuto); timerAuto = null; }
+    if (!Arquivo.suportado()) return Promise.resolve(false);
+    return Arquivo.atualizarSePuder(Store.exportarBackup()).then(function (nome) {
+      if (nome) {
+        Store.registrarBackup('arquivo-auto');
+        pendente = false;
+      }
+      sincronizarCartaoBackup();
+      return !!nome;
+    }, function () {
+      sincronizarCartaoBackup();
+      return false;
+    });
+  }
+
+  /**
+   * Sair do app e o momento mais perigoso no celular: o Android pode matar a aba a qualquer
+   * instante depois disso. Entao aqui NAO se espera o debounce — grava agora.
+   *
+   * `visibilitychange` e nao `beforeunload`: no Android o segundo frequentemente nem dispara.
+   */
+  function ligarGravacaoAutomatica() {
+    Store.aoAlterar(agendarGravacaoAutomatica);
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'hidden') {
+        if (pendente) gravarAutomaticamente();
+      } else {
+        // Voltou pro app: a permissao pode ter caido enquanto ele estava fora, ou pode ter
+        // ficado gravacao pendente. Tenta de novo, calado.
+        if (pendente) gravarAutomaticamente();
+        else sincronizarCartaoBackup();
+      }
+    });
+  }
+
+  /** Redesenha o cartão só se a tela de Ajustes estiver aberta — senão é trabalho à toa. */
+  function sincronizarCartaoBackup() {
+    if (document.getElementById('cartaoBackup')) desenharCartaoBackup();
   }
 
   // ---------------------------------------------------------------- BACKUP: importar
@@ -1884,4 +1975,5 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar);
   else iniciar();
   registrarServiceWorker();
+  ligarGravacaoAutomatica();
 })();

@@ -59,6 +59,19 @@
     });
   }
 
+  /**
+   * SO PERGUNTA — nunca pede. E a diferenca que faz o auto-save existir sem incomodar:
+   * `requestPermission` exige o gesto do usuario, entao chamar ele de dentro de uma gravacao
+   * automatica ou nao faz nada, ou e ignorado pelo navegador. Aqui a resposta e honesta:
+   * `false` significa "precisa de um toque", e quem chama mostra o aviso em vez de fingir.
+   */
+  function permissaoConcedida(h) {
+    if (!h) return Promise.resolve(false);
+    if (!h.queryPermission) return Promise.resolve(true);
+    return h.queryPermission({ mode: 'readwrite' })
+      .then(function (p) { return p === 'granted'; }, function () { return false; });
+  }
+
   function escrever(h, texto) {
     return h.createWritable().then(function (w) {
       return w.write(texto).then(function () { return w.close(); });
@@ -84,6 +97,9 @@
   /**
    * Grava no arquivo ja vinculado. Devolve o nome gravado, ou null se nao havia vinculo /
    * a permissao foi negada — quem chama decide se cai no download comum.
+   *
+   * ⚠️ PEDE permissao se ela nao estiver de pe, entao so pode ser chamada de dentro de um
+   * clique do usuario. Para gravacao automatica use `atualizarSePuder`.
    */
   function atualizar(texto) {
     return vinculado().then(function (h) {
@@ -95,11 +111,28 @@
     });
   }
 
+  /**
+   * A versao para gravacao automatica: grava so se a permissao JA estiver concedida, sem
+   * nunca abrir dialogo. Devolve o nome gravado, ou null — e `null` aqui nao e falha, e
+   * "agora nao da, mostre o aviso e espere o toque".
+   */
+  function atualizarSePuder(texto) {
+    return vinculado().then(function (h) {
+      if (!h) return null;
+      return permissaoConcedida(h).then(function (ok) {
+        if (!ok) return null;
+        return escrever(h, texto).then(function () { return h.name; }, function () { return null; });
+      });
+    });
+  }
+
   var Arquivo = {
     suportado: suportado,
     escolher: escolher,
     vinculado: vinculado,
+    permissaoConcedida: permissaoConcedida,
     atualizar: atualizar,
+    atualizarSePuder: atualizarSePuder,
     esquecer: apagarHandle
   };
 

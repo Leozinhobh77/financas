@@ -1248,6 +1248,20 @@ main { max-width: 900px; margin: 0 auto; padding: 1.15rem clamp(.9rem, 4vw, 2rem
 .bk-nota { display: block; font-size: .78rem; color: var(--ink-2); margin-top: .15rem; }
 .bk-acoes { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
 
+/* Sinal do auto-save (plano 0008). A cor sozinha nao pode ser o unico portador da informacao
+   — daltonismo — por isso o texto ao lado sempre diz o estado por extenso. */
+.bk-sinal {
+  display: inline-flex; align-items: center; gap: .35rem;
+  font-size: .78rem; font-weight: 600; margin-top: .25rem;
+}
+.bk-bolinha { width: .5rem; height: .5rem; border-radius: 50%; flex-shrink: 0; }
+.bk-sinal--ok { color: var(--positivo); }
+.bk-sinal--ok .bk-bolinha { background: var(--positivo); }
+/* Pendente e clicavel: e o caminho de volta quando a permissao cai. */
+.bk-sinal--pendente { color: var(--alerta); cursor: pointer; }
+.bk-sinal--pendente .bk-bolinha { background: var(--alerta); }
+.bk-sinal--pendente:hover { text-decoration: underline; }
+
 .botao-mini { padding: .35rem .6rem; font-size: .78rem; }
 
 .ponto-linha, .risco-linha {

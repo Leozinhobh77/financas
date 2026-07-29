@@ -7,7 +7,7 @@ O **mais novo fica sempre no topo** de cada seção.
 
 | ID | Plano | Status | Progresso | Criado | Atualizado |
 |----|-------|--------|-----------|--------|------------|
-| [0008](0008-2026-07-29-gravar-automatico-no-arquivo-vinculado.md) | Gravar automático no arquivo vinculado (auto-save + indicador honesto) | 📝 Rascunho | 0 de 16 (0%) | 2026-07-29 | 2026-07-29 |
+| [0008](0008-2026-07-29-gravar-automatico-no-arquivo-vinculado.md) | Gravar automático no arquivo vinculado (auto-save + indicador honesto) | 🚧 Em andamento | 15 de 16 (94%) | 2026-07-29 | 2026-07-29 |
 
 ## ✅ Concluídos / Arquivados
 
